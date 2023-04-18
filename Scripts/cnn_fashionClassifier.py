@@ -36,12 +36,16 @@ y_test = open_labels("../data/fashion/t10k-labels-idx1-ubyte.gz")
 
 y_train = to_categorical(y_train)
 y_test = to_categorical(y_test)
+y_val = to_categorical(y_val)
 
 # Model using keras functional API
 input = tf.keras.Input(shape=(28, 28, 1))
 conv1 = Conv2D(10, kernel_size=(3, 3), activation='relu', input_shape=(28, 28, 1))(input)
-flattened = Flatten()(conv1)
-output = Dense(10, activation='sigmoid')(flattened)
+maxpool1 = MaxPool2D(pool_size=(2,2))(conv1)
+dropout1 = Dropout(0.25)(maxpool1)
+flattened = Flatten()(dropout1)
+output_1 = Dense(10, activation='softmax')(flattened)
+output = Dropout(0.25)(output_1)
 
 model = Model(input, output)
 model.compile(optimizer="rmsprop", loss="categorical_crossentropy", metrics=["accuracy"])
@@ -50,15 +54,15 @@ nData_train = X_train.shape[0]
 nData_val = X_val.shape[0]
 
 history = model.fit(
-    X_train.reshape(60000, 28, 28, 1),
+    X_train.reshape(nData_train, 28, 28, 1),
     y_train,
-    validation_data=(X_val, y_val),
+    validation_data=(X_val.reshape(nData_val, 28, 28, 1), y_val),
     epochs=10,
     batch_size=1000
 )
 
 print(history)
-
+print(f"statistics on test set: {model.evaluate(X_test.reshape(-1, 28, 28, 1), y_test)}")
 
 # Get intermediate outputs after first layer for visualization
 from matplotlib import pyplot as plt
