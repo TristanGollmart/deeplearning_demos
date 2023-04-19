@@ -41,7 +41,7 @@ y_val = to_categorical(y_val)
 # Model using keras functional API
 input = tf.keras.Input(shape=(28, 28, 1))
 conv1 = Conv2D(10, kernel_size=(3, 3), activation='relu', input_shape=(28, 28, 1))(input)
-maxpool1 = MaxPool2D(pool_size=(2,2))(conv1)
+maxpool1 = MaxPool2D(pool_size=(2, 2))(conv1)
 dropout1 = Dropout(0.25)(maxpool1)
 flattened = Flatten()(dropout1)
 output_1 = Dense(10, activation='softmax')(flattened)
