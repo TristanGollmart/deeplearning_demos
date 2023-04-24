@@ -13,8 +13,18 @@ from keras.models import Model
 y_train = y_train == 1 # car class is 1
 y_test = y_test == 1
 
-X_train = X_train.astype(np.float32) /255
+X_train = X_train.astype(np.float32) / 255
 X_test = X_test.astype(np.float32) / 255
+
+# ---------------- Generate New Data--------------------------------------------------------------
+gen = ImageDataGenerator(width_shift_range=3, height_shift_range=3, zoom_range=0.1, horizontal_flip=True)
+# for batch in gen.flow(X_train, y_train, shuffle=False):
+#     print(batch[0].shape)
+#     first_image = batch[0][0]
+#     plt.imshow(first_image)
+#     plt.show()
+#     break
+# ---------------------------------------------------------
 
 # plt.imshow(X_train[1])
 # plt.show()
@@ -41,7 +51,7 @@ model = Model(input, output)
 model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
 
 # ---------FITTING PROCESS-------------
-# history = model.fit(X_train, y_train, batch_size=128, epochs=10)
+# history = model.fit_generator(gen.flow(X_train, y_train, batch_size=128), epochs=10)
 # model.evaluate(X_test, y_test)
 # model.save(r'..\models\cnn_car_detector')
 
@@ -51,9 +61,5 @@ print(f'loaded model performance {model_loaded.evaluate(X_test, y_test)}')
 
 
 
-# ---------------- Generate New Data--------------------------------------------------------------
-gen = ImageDataGenerator(width_shift_range=3)
-for batch in gen.flow(X_train, y_train):
-    print(batch[0])
-    break
+
 
