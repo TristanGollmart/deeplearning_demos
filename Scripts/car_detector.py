@@ -30,15 +30,15 @@ gen = ImageDataGenerator(width_shift_range=3, height_shift_range=3, zoom_range=0
 # plt.show()
 # model
 input = Input(shape=(32, 32, 3))
-conv1 = Conv2D(32, kernel_size=(3,3), padding='same', input_shape=(32, 32, 3), activation='relu')(input)
+conv1 = Conv2D(32, kernel_size=(3, 3), padding='same', input_shape=(32, 32, 3), activation='relu')(input)
 maxpool1 = MaxPool2D(pool_size=(2, 2))(conv1)
 maxpool1 = Dropout(0.25)(maxpool1)
 
-conv2 = Conv2D(32, kernel_size=(3,3), padding='same', activation='relu')(maxpool1)
+conv2 = Conv2D(32, kernel_size=(3, 3), padding='same', activation='relu')(maxpool1)
 maxpool2 = MaxPool2D(pool_size=(2, 2))(conv2)
 maxpool2 = Dropout(0.25)(maxpool2)
 
-conv3 = Conv2D(32, kernel_size=(3,3), padding='same', activation='relu')(maxpool2)
+conv3 = Conv2D(32, kernel_size=(3, 3), padding='same', activation='relu')(maxpool2)
 maxpool3 = MaxPool2D(pool_size=(2, 2))(conv3)
 maxpool3 = Dropout(0.25)(maxpool3)
 
