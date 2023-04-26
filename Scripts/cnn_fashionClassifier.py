@@ -36,6 +36,7 @@ y_test = open_labels("../data/fashion/t10k-labels-idx1-ubyte.gz")
 
 y_train = to_categorical(y_train)
 y_test = to_categorical(y_test)
+y_val = to_categorical(y_val)
 
 # Model using keras functional API
 input = tf.keras.Input(shape=(28, 28, 1))
