@@ -35,14 +35,14 @@ model = tf.keras.models.load_model(r"..\models\cnn_car_detector")
 
 # sliding window over image to find car
 # cropping
-window_size = 60
+window_size = 100
 step_size = 20
-nsteps_x = int(np.asarray(img).shape[1] / step_size) + 1
-nsteps_y = int(np.asarray(img).shape[0] / step_size) + 1
+nsteps_x = int(img.size[0] / step_size) + 1
+nsteps_y = int(img.size[1] / step_size) + 1
 
 y_data = []
-for i in range(nsteps_y):
-    for j in range(nsteps_x):
+for i in range(nsteps_x):
+    for j in range(nsteps_y):
         img_cropped = img.crop((i * step_size, j * step_size,
                                 i * step_size + window_size, j * step_size + window_size))\
                                 .resize((32, 32), resample=Image.Resampling.BICUBIC)
@@ -52,14 +52,24 @@ for i in range(nsteps_y):
         y_data.append(model.predict(data)[0][0])
 
 assert len(y_data) == nsteps_x * nsteps_y, "length of prediction array is not as expected"
-y_data = np.reshape(y_data, (nsteps_y, nsteps_x))
+y_data = np.reshape(y_data, (nsteps_x, nsteps_y))
 
-(i_opt, j_opt) = np.unravel_index(y_data.argmax(), y_data.shape)
-point_corner_opt = [i_opt * step_size, j_opt * step_size]
-point_corner_opt2 = [i_opt * step_size + window_size, j_opt * step_size + window_size]
-draw = ImageDraw.Draw(img)
-img_signed = draw_rectangle(draw, point_corner_opt, point_corner_opt2)
+# (i_opt, j_opt) = np.unravel_index(y_data.argmax(), y_data.shape)
+# point_corner_opt = [i_opt * step_size, j_opt * step_size]
+# point_corner_opt2 = [i_opt * step_size + window_size, j_opt * step_size + window_size]
+# draw = ImageDraw.Draw(img)
+# img_signed = draw_rectangle(draw, point_corner_opt, point_corner_opt2)
 
+points = []
+points2 = []
+img_signed = img.copy()
+for ix in range(y_data.shape[0]):
+    for iy in range(y_data.shape[1]):
+        if y_data[ix, iy] >= 0.4:
+            points.append([ix * step_size, iy*step_size])
+            points2.append([ix * step_size + window_size, iy*step_size + window_size])
+            draw = ImageDraw.Draw(img_signed)
+            img_signed = draw_rectangle(draw, points[-1], points2[-1])
 
 plt.imshow(img_signed)
 plt.show()
