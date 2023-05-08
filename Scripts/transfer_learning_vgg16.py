@@ -15,16 +15,8 @@ from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
-TRAIN_MODEL = False
-
-# process test image for vgg16 use
-# img = load_img('..\data\dog.jpg', target_size=(224, 224))
-# plt.imshow(img)
-# plt.show()
-# img = img_to_array(img)
-# img = img.reshape((1, 224, 224, 3))
-# img = preprocess_input(img)
-# print(img)
+TRAIN_CUSTOM_MODEL = False
+TRAIN_VGG_MODEL = True
 
 # read_images
 def read_images(path):
@@ -56,7 +48,7 @@ X_train, X_test, y_train, y_test = train_test_split(X_customNet, y, test_size=0.
 
 # custom cnn
 
-if TRAIN_MODEL:
+if TRAIN_CUSTOM_MODEL:
     input = Input(shape=(224, 224, 3))
     conv1 = Conv2D(32, kernel_size=(3, 3), padding='same', input_shape=(224, 224, 3), activation='relu')(input)
     conv1 = Conv2D(32, kernel_size=(3, 3), padding='same', input_shape=(224, 224, 3), activation='relu')(conv1)
@@ -98,7 +90,7 @@ test_result = model.evaluate(X_test, y_test)
 X = preprocess_input(X)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-if TRAIN_MODEL:
+if TRAIN_VGG_MODEL:
     model_vgg16 = VGG16(include_top=False, input_shape=(224, 224, 3))
     model_vgg16.trainable = False
 
@@ -114,18 +106,34 @@ if TRAIN_MODEL:
     output = Dense(1, activation='sigmoid')(vgg16)
     model = Model(input, output)
     model.compile(optimizer=Adam(learning_rate=0.00001), loss="binary_crossentropy", metrics=['accuracy'])
-    model.fit(X_vgg_output_train, y_train, batch_size=32, epochs=30)
+    model.fit(X_vgg_output_train, y_train, batch_size=32, epochs=30, validation_split=0.2)
     model.save(os.path.join("..", "models", "vgg16TransferLearning"))
 else:
+    model_vgg16 = VGG16(include_top=False, input_shape=(224, 224, 3))
     model = load_model(os.path.join("..", "models", "vgg16TransferLearning"))
 
 test_result = model.evaluate(model_vgg16.predict(X_test), y_test)
 ypred = model.predict(model_vgg16.predict(X_test[0].reshape(1, 224, 224, 3)))
+if ypred[0][0] < 0.5:
+    print("this image is not a dog")
+else:
+    print("this image is a dog")
+
+# process test image for vgg16 use
+img = load_img(r'..\\data\\dog.jpg', target_size=(224, 224))
+plt.imshow(img)
+plt.show()
+img = img_to_array(img)
+img = img.reshape((1, 224, 224, 3))
+img = preprocess_input(img)
+print(img)
+
+ypred = model.predict(model_vgg16.predict(img))
 
 if ypred[0][0] < 0.5:
     print("this image is not a dog")
 else:
     print("this image is a dog")
 
-ypred = decode_predictions(ypred)
+# on a test image not from that dataset
 

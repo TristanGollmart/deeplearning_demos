@@ -11,11 +11,11 @@ from sklearn.model_selection import train_test_split
 
 
 def open_images(filename):
-        with gzip.open(filename, 'rb') as file:
-            data = file.read()
-            return np.frombuffer(data, dtype=np.uint8, offset=16)\
-                .reshape(-1, 28, 28)\
-                .astype(np.float32)
+    with gzip.open(filename, 'rb') as file:
+        data = file.read()
+        return np.frombuffer(data, dtype=np.uint8, offset=16)\
+            .reshape(-1, 28, 28)\
+            .astype(np.float32)
 
 
 def open_labels(filename):
