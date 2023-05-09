@@ -39,6 +39,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.applications import vgg19
+import matplotlib.pyplot as plt
+from PIL import Image
 
 base_image_path = r'..\data\image_style_transfer\bild.jpg'  # keras.utils.get_file("paris.jpg", "https://i.imgur.com/F28w3Ac.jpg")
 style_reference_image_path = r'..\data\image_style_transfer\style2.jpg'
@@ -65,9 +67,15 @@ img_ncols = int(width * img_nrows / height)
 ## Let's take a look at our base (content) image and our style reference image
 """
 
-from IPython.display import Image, display
+#from IPython.display import Image, display
 
-display(Image(base_image_path))
+base_image = np.asarray(Image.open(base_image_path))
+style_image = np.asarray(Image.open(style_reference_image_path))
+plt.imshow(base_image[:, :, 0])
+plt.imshow(style_image[:, :, 0])
+plt.show()
+
+
 display(Image(style_reference_image_path))
 
 """
@@ -256,16 +264,17 @@ for i in range(1, iterations + 1):
         combination_image, base_image, style_reference_image
     )
     optimizer.apply_gradients([(grads, combination_image)])
-    if i % 100 == 0:
-        print("Iteration %d: loss=%.2f" % (i, loss))
-        img = deprocess_image(combination_image.numpy())
-        fname = result_prefix + "_at_iteration_%d.png" % i
-        keras.preprocessing.image.save_img(fname, img)
+    print("Iteration %d: loss=%.2f" % (i, loss))
+    img = deprocess_image(combination_image.numpy())
+    fname = result_prefix + "_at_iteration_%d.png" % i
+    keras.preprocessing.image.save_img(fname, img)
 
 """
 After 4000 iterations, you get the following result:
 """
 
-display(Image(result_prefix + "_at_iteration_4000.png"))
+#display(Image(result_prefix + "_at_iteration_10.png"))
 
 
+plt.imshow(img[:, :, 0])
+plt.show()
