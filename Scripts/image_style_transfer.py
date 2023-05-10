@@ -51,12 +51,12 @@ keras.utils.get_file(
 )
 '''
 
-result_prefix = r"..\data\image_style_transfer\myresult_"
+result_prefix = r"..\data\image_style_transfer\myresult_strongerStyle"
 
 # Weights of the different loss components
-total_variation_weight = 1e-6
-style_weight = 1e-6
-content_weight = 2.5e-8
+total_variation_weight = 1e-5
+style_weight = 1e-4
+content_weight = 2.5e-7
 
 # Dimensions of the generated picture.
 width, height = keras.preprocessing.image.load_img(base_image_path).size
@@ -76,7 +76,7 @@ plt.imshow(style_image[:, :, 0])
 plt.show()
 
 
-display(Image(style_reference_image_path))
+#display(Image(style_reference_image_path))
 
 """
 ## Image preprocessing / deprocessing utilities
