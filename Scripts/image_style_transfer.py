@@ -54,9 +54,9 @@ keras.utils.get_file(
 result_prefix = r"..\data\image_style_transfer\myresult_strongerStyle"
 
 # Weights of the different loss components
-total_variation_weight = 1e-5
-style_weight = 1e-4
-content_weight = 2.5e-7
+total_variation_weight = 1e-6
+style_weight = 6e-6
+content_weight = 1e-10
 
 # Dimensions of the generated picture.
 width, height = keras.preprocessing.image.load_img(base_image_path).size
@@ -71,9 +71,9 @@ img_ncols = int(width * img_nrows / height)
 
 base_image = np.asarray(Image.open(base_image_path))
 style_image = np.asarray(Image.open(style_reference_image_path))
-plt.imshow(base_image[:, :, 0])
-plt.imshow(style_image[:, :, 0])
-plt.show()
+#plt.imshow(base_image[:, :, 0])
+#plt.imshow(style_image[:, :, 0])
+#plt.show()
 
 
 #display(Image(style_reference_image_path))
@@ -258,7 +258,7 @@ base_image = preprocess_image(base_image_path)
 style_reference_image = preprocess_image(style_reference_image_path)
 combination_image = tf.Variable(preprocess_image(base_image_path))
 
-iterations = 10
+iterations = 20
 for i in range(1, iterations + 1):
     loss, grads = compute_loss_and_grads(
         combination_image, base_image, style_reference_image
@@ -266,8 +266,9 @@ for i in range(1, iterations + 1):
     optimizer.apply_gradients([(grads, combination_image)])
     print("Iteration %d: loss=%.2f" % (i, loss))
     img = deprocess_image(combination_image.numpy())
-    fname = result_prefix + "_at_iteration_%d.png" % i
-    keras.preprocessing.image.save_img(fname, img)
+    if i % 10 == 0:
+        fname = result_prefix + "_at_iteration_%d.png" % i
+        keras.preprocessing.image.save_img(fname, img)
 
 """
 After 4000 iterations, you get the following result:
