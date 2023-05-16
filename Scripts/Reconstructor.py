@@ -17,20 +17,57 @@ X, y = load_iris(return_X_y=True)
 
 sc = StandardScaler()
 X = sc.fit_transform(X)
+y = sc.fit_transform(y)
 
 x_rec = X[:, 0].reshape(-1, 1)
 
+def transform_input_1d(x, seq_length):
+    '''
+    Transforms 1D Input to the format expected by Reconstructor
+    :param x:
+    :param seq_length:
+    :return:
+    '''
+    x_seq = []
+    for t in range(seq_length, x.shape[0]):
+        x_seq.append(x[t-seq_length:t])
+    x_seq = np.expand_dims(x_seq, 2)
+    return x_seq
+
+def transform_input_2d(x, seq_length):
+    '''
+    Transforms 1D Input to the format expected by Reconstructor
+    :param x:
+    :param seq_length:
+    :return:
+    '''
+    x_seq = []
+    for t in range(seq_length, x.shape[0]):
+        x_seq_single = []
+        for iFt in range(x.shape[1]):
+            x_seq_single.append(x[t - seq_length: t, iFt].tolist())
+        x_seq.append(x_seq_single)
+    x_seq = np.array(x_seq)
+    x_seq = np.transpose(x_seq, axes=(0, 2, 1))
+    return x_seq
+
 X_conv = []
 x_rec_conv = []
+y_rec = []
 for t in range(WINDOW_SIZE, X.shape[0]):
     X_conv_single = []
     x_rec_sequence = []
+    y_rec.append(y[t-WINDOW_SIZE:t])
     for iFt in range(X.shape[1]):
         X_conv_single.append(X[t-WINDOW_SIZE: t, iFt].tolist())
+    X_conv.append(X_conv_single)
 
     x_rec_sequence.append(x_rec[t-WINDOW_SIZE:t, 0].tolist())
     x_rec_conv.append(x_rec_sequence)
 
+y_rec = np.expand_dims(y_rec, 2)
+X_conv = np.array(X_conv)
+X_conv = np.transpose(X_conv, axes=(0, 2, 1))
 x_rec_conv = np.array(x_rec_conv)
 x_rec_conv = np.transpose(x_rec_conv, axes=(0, 2, 1))
 y = y[WINDOW_SIZE:]
@@ -69,31 +106,36 @@ class TSReconstructor(keras.Model):
         return expand_dims(output, 2)
 
 
+# reconstructor multivariate X to univariate target
+TR = TSReconstructor(nFeatures=X_conv.shape[-1])
+input = Input(shape=(WINDOW_SIZE, X_conv.shape[-1]))
+output = TR(input)
+model = Model(input, output)
+model.summary()
 
-# reconstructor
+model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
+history = model.fit(X_conv, y_rec, epochs=100)
+
+y_rec_pred = model.predict(X_conv)
+
+model.save(r'..\models\TimeseriesReconstructor_Multivariate')
+
+plt.plot(y_rec[0, :, 0])
+plt.plot(y_rec_pred[0, :, 0])
+plt.show()
+
+plt.plot(y_rec[:, 0, 0], label='First value of sequence')
+plt.plot(y_rec_pred[:, 0, 0], label='First value reconstructed')
+plt.legend()
+plt.show()
+
+
+
+# reconstructor 1 variable
 TR = TSReconstructor()
 input = Input(shape=(WINDOW_SIZE, x_rec.shape[1]))
 output = TR(input)
 model = Model(input, output)
-
-# conv1d = Conv1D(8, kernel_size=7, padding="valid", activation='relu')(input)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1D(16, kernel_size=5, padding="valid", activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1D(32, kernel_size=3, padding="valid", activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-#
-# #     reconstruction
-# conv1d = Conv1DTranspose(32, kernel_size=3, padding='valid', activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1DTranspose(16, kernel_size=5, padding='valid', activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1DTranspose(8, kernel_size=7, padding='valid', activation='relu')(conv1d)
-#
-# flat = Flatten()(conv1d)
-# output = Dense(WINDOW_SIZE)(flat)
-# output = expand_dims(output, 2)
-#model = Model(input, output)
 
 model.summary()
 model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
@@ -113,3 +155,21 @@ model.save(r'..\models\TimeseriesReconstructor')
 
 
 
+# conv1d = Conv1D(8, kernel_size=7, padding="valid", activation='relu')(input)
+# conv1d = Dropout(0.2)(conv1d)
+# conv1d = Conv1D(16, kernel_size=5, padding="valid", activation='relu')(conv1d)
+# conv1d = Dropout(0.2)(conv1d)
+# conv1d = Conv1D(32, kernel_size=3, padding="valid", activation='relu')(conv1d)
+# conv1d = Dropout(0.2)(conv1d)
+#
+# #     reconstruction
+# conv1d = Conv1DTranspose(32, kernel_size=3, padding='valid', activation='relu')(conv1d)
+# conv1d = Dropout(0.2)(conv1d)
+# conv1d = Conv1DTranspose(16, kernel_size=5, padding='valid', activation='relu')(conv1d)
+# conv1d = Dropout(0.2)(conv1d)
+# conv1d = Conv1DTranspose(8, kernel_size=7, padding='valid', activation='relu')(conv1d)
+#
+# flat = Flatten()(conv1d)
+# output = Dense(WINDOW_SIZE)(flat)
+# output = expand_dims(output, 2)
+#model = Model(input, output)
