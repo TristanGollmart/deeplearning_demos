@@ -37,6 +37,7 @@ plt.show()
 
 # LR
 # Assumption yt ~ p(yt|xt) independent of y(t-1) given x(t), no further autocorrelation to be included here
+# Use LR instead of ARIMA since no partial auto correlation, and Arima would fit also outliers too well
 LR = LinearRegression()
 LR.fit(X_base, y_base)
 y_pred_base = LR.predict(X_base)
@@ -74,8 +75,17 @@ plt.show()
 GPR = GaussianProcessRegressor(kernel='rbf')
 GPR.fit(X_base, y_base)
 y_pred_test, sig_pred_test = GPR.predict(X_test, return_std=True)
+prob = norm.pdf(y_test, loc=y_pred_test, scale=sig_pred_test)
+isfaulty = pd.Series(data=(prob < PROBABILITY_CUTOFF), index=y_test.index)
 
+fig, ax1 = plt.subplots()
+ax2 = ax1.twinx()
+ax1.plot(y_pred_test, alpha=0.2, color='g', label='mu predicted')
+ax1.plot(y_test, alpha=0.2, color='yellow', label='data')
 
-
+severeFault = getSevereFaults(isfaulty)
+ax2.plot(severeFault, alpha=0.7, color='red', label='severe')
+fig.legend(loc='upper right')
+plt.show()
 
 print("finished")
