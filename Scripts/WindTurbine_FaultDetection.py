@@ -178,4 +178,9 @@ if sModel == 'TR':
     plt.legend()
     plt.show()
 
+    plt.plot(residuals, label='residuals')
+    plt.title('TR Resdiuals')
+    plt.legend()
+    plt.show()
+
 print("finished")

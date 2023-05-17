@@ -1,7 +1,7 @@
 import keras
 from tensorflow import expand_dims
 from keras.models import Model
-from keras.layers import Conv1D, Dense, Dropout, Flatten, Input, Conv1DTranspose
+from keras.layers import Conv1D, Dense, Dropout, Flatten, Input, Conv1DTranspose, AveragePooling1D
 import numpy as np
 import pandas as pd
 from sklearn.datasets import load_iris
@@ -53,22 +53,26 @@ class TSReconstructor(keras.Model):
         super(TSReconstructor, self).__init__()
         self.Dropout = Dropout(0.2)
         self.Flatten = Flatten()
+        self.AvgPool = AveragePooling1D(pool_size=2)
         self.conv1D_1 = Conv1D(8, kernel_size=7, padding="valid", input_shape=(seq_length, nFeatures), activation='relu')
         self.conv1D_2 = Conv1D(16, kernel_size=7, padding="valid", activation='relu')
         self.conv1D_3 = Conv1D(32, kernel_size=7, padding="valid", activation='relu')
 
-        self.convT1D_1 = Conv1DTranspose(32, kernel_size=3, padding='valid', activation='relu')
-        self.convT1D_2 = Conv1DTranspose(16, kernel_size=3, padding='valid', activation='relu')
-        self.convT1D_3 = Conv1DTranspose(8, kernel_size=3, padding='valid', activation='relu')
+        self.convT1D_1 = Conv1DTranspose(32, strides=2, kernel_size=3, padding='valid', activation='relu')
+        self.convT1D_2 = Conv1DTranspose(16, strides=2, kernel_size=3, padding='valid', activation='relu')
+        self.convT1D_3 = Conv1DTranspose(8, strides=2, kernel_size=3, padding='valid', activation='relu')
 
         self.Classifier = Dense(seq_length)
 
     def call(self, input):
         conv = self.conv1D_1(input)
+        conv = self.AvgPool(conv)
         conv = self.Dropout(conv)
         conv = self.conv1D_2(conv)
+        conv = self.AvgPool(conv)
         conv = self.Dropout(conv)
         conv = self.conv1D_3(conv)
+        conv = self.AvgPool(conv)
         conv = self.Dropout(conv)
         deconv = self.convT1D_1(conv)
         deconv = self.Dropout(deconv)
