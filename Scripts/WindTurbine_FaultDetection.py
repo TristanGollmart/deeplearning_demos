@@ -11,7 +11,7 @@ from scipy.stats import norm
 
 PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribution is smaller than this
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
-sModel = 'GP'
+sModel = 'TR' #'GP'
 
 def getSevereFaults(isfaulty):
     # detect severe fault from single faults
@@ -111,34 +111,59 @@ if sModel == 'GP':
     fig.legend(loc='upper right')
     plt.show()
 
-# DBSCAN
+if sModel == 'DBSCAN':
+    # DBSCAN
+    pass
 
+if sModel == 'TR':
+    # Reconstructor
+    from Reconstructor import TSReconstructor, transform_input_1d
+    from tensorflow import expand_dims
+    from keras.models import Model
+    from keras.layers import Input
 
+    WINDOW_SIZE = 24 * 7 # 1 week
 
+    X_base_hourly = X_base.loc[X_base.index.minute == 0]
+    y_base_hourly = y_base.loc[y_base.index.minute == 0]
+    X_test_hourly = X_test.loc[X_test.index.minute == 0]
+    y_test_hourly = y_test.loc[y_test.index.minute == 0]
 
-# Reconstructor
-from Reconstructor import TSReconstructor, transform_input_1d
+    x_rec = transform_input_1d(y_base_hourly, WINDOW_SIZE)
+    x_rec_test = transform_input_1d(y_test_hourly, WINDOW_SIZE)
 
+    TR = TSReconstructor(seq_length=WINDOW_SIZE, nFeatures=1)
+    input = Input(shape=(WINDOW_SIZE, x_rec.shape[-1]))
+    output = TR(input)
+    model = Model(input, output)
 
-TR = TSReconstructor()
-input = Input(shape=(WINDOW_SIZE, x_rec.shape[1]))
-output = TR(input)
-model = Model(input, output)
+    ypred_ = model.predict(x_rec)
 
-model.summary()
-model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
-history = model.fit(x_rec_conv, x_rec_conv, epochs=100)
+    model.summary()
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
+    history = model.fit(x_rec, x_rec, epochs=100)
 
-x_rec_pred = model.predict(x_rec_conv)
-plt.plot(x_rec_conv[0, :, 0])
-plt.plot(x_rec_pred[0, :, 0])
-plt.show()
+    x_rec_pred_train = model.predict(x_rec)
+    mse_base = mean_squared_error(x_rec, x_rec_pred_train)
+    print('mse score on base set: {:.3f}'.format(mse_base))
 
-plt.plot(x_rec_conv[:, 0, 0], label='First value of sequence')
-plt.plot(x_rec_pred[:, 0, 0], label='First value reconstructed')
-plt.legend()
-plt.show()
+    x_rec_pred = model.predict(x_rec_test)
+    mse_test = mean_squared_error(x_rec_test, x_rec_pred)
+    print('mse score on test set: {:.3f}'.format(mse_test))
 
-model.save(r'..\models\TimeseriesReconstructor')
+    residuals = x_rec_test[:, 0, 0] - x_rec_pred[:, 0, 0]
+
+    plt.plot(x_rec_test[0, :, 0], label='First sequence')
+    plt.plot(x_rec_pred[0, :, 0], label='First sequence reconstructed')
+    plt.legend()
+    plt.show()
+
+    plt.plot(x_rec_test[:, 0, 0], color='green', label='First value of sequence')
+    plt.plot(x_rec_pred[:, 0, 0], color = 'yellow' ,label='First value reconstructed')
+    plt.plot(residuals, alpha = 0.5, color='red')
+    plt.legend()
+    plt.show()
+
+    model.save(r'..\models\TimeseriesReconstructor')
 
 print("finished")

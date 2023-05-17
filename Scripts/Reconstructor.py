@@ -13,13 +13,7 @@ from sklearn.preprocessing import StandardScaler
 WINDOW_SIZE = 20
 
 
-X, y = load_iris(return_X_y=True)
 
-sc = StandardScaler()
-X = sc.fit_transform(X)
-y = sc.fit_transform(y)
-
-x_rec = X[:, 0].reshape(-1, 1)
 
 def transform_input_1d(x, seq_length):
     '''
@@ -51,35 +45,15 @@ def transform_input_2d(x, seq_length):
     x_seq = np.transpose(x_seq, axes=(0, 2, 1))
     return x_seq
 
-X_conv = []
-x_rec_conv = []
-y_rec = []
-for t in range(WINDOW_SIZE, X.shape[0]):
-    X_conv_single = []
-    x_rec_sequence = []
-    y_rec.append(y[t-WINDOW_SIZE:t])
-    for iFt in range(X.shape[1]):
-        X_conv_single.append(X[t-WINDOW_SIZE: t, iFt].tolist())
-    X_conv.append(X_conv_single)
 
-    x_rec_sequence.append(x_rec[t-WINDOW_SIZE:t, 0].tolist())
-    x_rec_conv.append(x_rec_sequence)
-
-y_rec = np.expand_dims(y_rec, 2)
-X_conv = np.array(X_conv)
-X_conv = np.transpose(X_conv, axes=(0, 2, 1))
-x_rec_conv = np.array(x_rec_conv)
-x_rec_conv = np.transpose(x_rec_conv, axes=(0, 2, 1))
-y = y[WINDOW_SIZE:]
-y = to_categorical(y)
 
 
 class TSReconstructor(keras.Model):
-    def __init__(self, nFeatures=1):
+    def __init__(self, seq_length, nFeatures=1):
         super(TSReconstructor, self).__init__()
         self.Dropout = Dropout(0.2)
         self.Flatten = Flatten()
-        self.conv1D_1 = Conv1D(8, kernel_size=7, padding="valid", input_shape=(WINDOW_SIZE, nFeatures), activation='relu')
+        self.conv1D_1 = Conv1D(8, kernel_size=7, padding="valid", input_shape=(seq_length, nFeatures), activation='relu')
         self.conv1D_2 = Conv1D(16, kernel_size=7, padding="valid", activation='relu')
         self.conv1D_3 = Conv1D(32, kernel_size=7, padding="valid", activation='relu')
 
@@ -87,7 +61,7 @@ class TSReconstructor(keras.Model):
         self.convT1D_2 = Conv1DTranspose(16, kernel_size=3, padding='valid', activation='relu')
         self.convT1D_3 = Conv1DTranspose(8, kernel_size=3, padding='valid', activation='relu')
 
-        self.Classifier = Dense(WINDOW_SIZE)
+        self.Classifier = Dense(seq_length)
 
     def call(self, input):
         conv = self.conv1D_1(input)
@@ -105,71 +79,102 @@ class TSReconstructor(keras.Model):
         output = self.Classifier(flat)
         return expand_dims(output, 2)
 
+if __name__ == '__main__':
 
-# reconstructor multivariate X to univariate target
-TR = TSReconstructor(nFeatures=X_conv.shape[-1])
-input = Input(shape=(WINDOW_SIZE, X_conv.shape[-1]))
-output = TR(input)
-model = Model(input, output)
-model.summary()
+    X, y = load_iris(return_X_y=True)
 
-model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
-history = model.fit(X_conv, y_rec, epochs=100)
+    sc = StandardScaler()
+    X = sc.fit_transform(X)
+    y = sc.fit_transform(y)
 
-y_rec_pred = model.predict(X_conv)
+    x_rec = X[:, 0].reshape(-1, 1)
+    # TESTS
+    y_rec = np.expand_dims(y_rec, 2)
+    X_conv = np.array(X_conv)
+    X_conv = np.transpose(X_conv, axes=(0, 2, 1))
+    x_rec_conv = np.array(x_rec_conv)
+    x_rec_conv = np.transpose(x_rec_conv, axes=(0, 2, 1))
+    y = y[WINDOW_SIZE:]
+    y = to_categorical(y)
 
-model.save(r'..\models\TimeseriesReconstructor_Multivariate')
+    X_conv = []
+    x_rec_conv = []
+    y_rec = []
+    for t in range(WINDOW_SIZE, X.shape[0]):
+        X_conv_single = []
+        x_rec_sequence = []
+        y_rec.append(y[t - WINDOW_SIZE:t])
+        for iFt in range(X.shape[1]):
+            X_conv_single.append(X[t - WINDOW_SIZE: t, iFt].tolist())
+        X_conv.append(X_conv_single)
 
-plt.plot(y_rec[0, :, 0])
-plt.plot(y_rec_pred[0, :, 0])
-plt.show()
+        x_rec_sequence.append(x_rec[t - WINDOW_SIZE:t, 0].tolist())
+        x_rec_conv.append(x_rec_sequence)
 
-plt.plot(y_rec[:, 0, 0], label='First value of sequence')
-plt.plot(y_rec_pred[:, 0, 0], label='First value reconstructed')
-plt.legend()
-plt.show()
+    # reconstructor multivariate X to univariate target
+    TR = TSReconstructor(seq_length=WINDOW_SIZE, nFeatures=X_conv.shape[-1])
+    input = Input(shape=(WINDOW_SIZE, X_conv.shape[-1]))
+    output = TR(input)
+    model = Model(input, output)
+    model.summary()
 
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
+    history = model.fit(X_conv, y_rec, epochs=100)
 
+    y_rec_pred = model.predict(X_conv)
 
-# reconstructor 1 variable
-TR = TSReconstructor()
-input = Input(shape=(WINDOW_SIZE, x_rec.shape[1]))
-output = TR(input)
-model = Model(input, output)
+    model.save(r'..\models\TimeseriesReconstructor_Multivariate')
 
-model.summary()
-model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
-history = model.fit(x_rec_conv, x_rec_conv, epochs=100)
+    plt.plot(y_rec[0, :, 0])
+    plt.plot(y_rec_pred[0, :, 0])
+    plt.show()
 
-x_rec_pred = model.predict(x_rec_conv)
-plt.plot(x_rec_conv[0, :, 0])
-plt.plot(x_rec_pred[0, :, 0])
-plt.show()
-
-plt.plot(x_rec_conv[:, 0, 0], label='First value of sequence')
-plt.plot(x_rec_pred[:, 0, 0], label='First value reconstructed')
-plt.legend()
-plt.show()
-
-model.save(r'..\models\TimeseriesReconstructor')
+    plt.plot(y_rec[:, 0, 0], label='First value of sequence')
+    plt.plot(y_rec_pred[:, 0, 0], label='First value reconstructed')
+    plt.legend()
+    plt.show()
 
 
 
-# conv1d = Conv1D(8, kernel_size=7, padding="valid", activation='relu')(input)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1D(16, kernel_size=5, padding="valid", activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1D(32, kernel_size=3, padding="valid", activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-#
-# #     reconstruction
-# conv1d = Conv1DTranspose(32, kernel_size=3, padding='valid', activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1DTranspose(16, kernel_size=5, padding='valid', activation='relu')(conv1d)
-# conv1d = Dropout(0.2)(conv1d)
-# conv1d = Conv1DTranspose(8, kernel_size=7, padding='valid', activation='relu')(conv1d)
-#
-# flat = Flatten()(conv1d)
-# output = Dense(WINDOW_SIZE)(flat)
-# output = expand_dims(output, 2)
-#model = Model(input, output)
+    # reconstructor 1 variable
+    TR = TSReconstructor()
+    input = Input(shape=(WINDOW_SIZE, x_rec.shape[1]))
+    output = TR(input)
+    model = Model(input, output)
+
+    model.summary()
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=["mse"])
+    history = model.fit(x_rec_conv, x_rec_conv, epochs=100)
+
+    x_rec_pred = model.predict(x_rec_conv)
+    plt.plot(x_rec_conv[0, :, 0])
+    plt.plot(x_rec_pred[0, :, 0])
+    plt.show()
+
+    plt.plot(x_rec_conv[:, 0, 0], label='First value of sequence')
+    plt.plot(x_rec_pred[:, 0, 0], label='First value reconstructed')
+    plt.legend()
+    plt.show()
+
+    model.save(r'..\models\TimeseriesReconstructor')
+
+
+
+    # conv1d = Conv1D(8, kernel_size=7, padding="valid", activation='relu')(input)
+    # conv1d = Dropout(0.2)(conv1d)
+    # conv1d = Conv1D(16, kernel_size=5, padding="valid", activation='relu')(conv1d)
+    # conv1d = Dropout(0.2)(conv1d)
+    # conv1d = Conv1D(32, kernel_size=3, padding="valid", activation='relu')(conv1d)
+    # conv1d = Dropout(0.2)(conv1d)
+    #
+    # #     reconstruction
+    # conv1d = Conv1DTranspose(32, kernel_size=3, padding='valid', activation='relu')(conv1d)
+    # conv1d = Dropout(0.2)(conv1d)
+    # conv1d = Conv1DTranspose(16, kernel_size=5, padding='valid', activation='relu')(conv1d)
+    # conv1d = Dropout(0.2)(conv1d)
+    # conv1d = Conv1DTranspose(8, kernel_size=7, padding='valid', activation='relu')(conv1d)
+    #
+    # flat = Flatten()(conv1d)
+    # output = Dense(WINDOW_SIZE)(flat)
+    # output = expand_dims(output, 2)
+    #model = Model(input, output)
