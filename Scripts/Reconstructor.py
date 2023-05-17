@@ -17,7 +17,7 @@ WINDOW_SIZE = 20
 
 def transform_input_1d(x, seq_length):
     '''
-    Transforms 1D Input to the format expected by Reconstructor
+    Transforms 1D Input to the 3D format expected by Reconstructor
     :param x:
     :param seq_length:
     :return:
@@ -30,7 +30,7 @@ def transform_input_1d(x, seq_length):
 
 def transform_input_2d(x, seq_length):
     '''
-    Transforms 1D Input to the format expected by Reconstructor
+    Transforms 2D Input to the 3D format expected by Reconstructor
     :param x:
     :param seq_length:
     :return:
@@ -39,7 +39,7 @@ def transform_input_2d(x, seq_length):
     for t in range(seq_length, x.shape[0]):
         x_seq_single = []
         for iFt in range(x.shape[1]):
-            x_seq_single.append(x[t - seq_length: t, iFt].tolist())
+            x_seq_single.append(x[t - seq_length:t, iFt].tolist())
         x_seq.append(x_seq_single)
     x_seq = np.array(x_seq)
     x_seq = np.transpose(x_seq, axes=(0, 2, 1))
@@ -49,14 +49,14 @@ def transform_input_2d(x, seq_length):
 
 
 class TSReconstructor(keras.Model):
-    def __init__(self, seq_length, nFeatures=1):
+    def __init__(self, seq_length, nFeatures=1, padding_conv="valid"):
         super(TSReconstructor, self).__init__()
         self.Dropout = Dropout(0.2)
         self.Flatten = Flatten()
         self.AvgPool = AveragePooling1D(pool_size=2)
-        self.conv1D_1 = Conv1D(8, kernel_size=7, padding="valid", input_shape=(seq_length, nFeatures), activation='relu')
-        self.conv1D_2 = Conv1D(16, kernel_size=7, padding="valid", activation='relu')
-        self.conv1D_3 = Conv1D(32, kernel_size=7, padding="valid", activation='relu')
+        self.conv1D_1 = Conv1D(8, kernel_size=7, padding=padding_conv, input_shape=(seq_length, nFeatures), activation='relu')
+        self.conv1D_2 = Conv1D(16, kernel_size=7, padding=padding_conv, activation='relu')
+        self.conv1D_3 = Conv1D(32, kernel_size=7, padding=padding_conv, activation='relu')
 
         self.convT1D_1 = Conv1DTranspose(32, strides=2, kernel_size=3, padding='valid', activation='relu')
         self.convT1D_2 = Conv1DTranspose(16, strides=2, kernel_size=3, padding='valid', activation='relu')
