@@ -1,3 +1,5 @@
+import datetime
+
 import pandas as pd
 import numpy as np
 import seaborn as sn
@@ -12,7 +14,7 @@ from scipy.stats import norm
 PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribution is smaller than this
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
 TRAIN_MODEL = True
-sModel = 'TR' #'GP'
+sModel = 'DBSCAN'  # 'TR' #'GP'
 
 def getSevereFaults(isfaulty):
     # detect severe fault from single faults
@@ -114,6 +116,42 @@ if sModel == 'GP':
 
 if sModel == 'DBSCAN':
     # DBSCAN
+    from sklearn.cluster import DBSCAN
+    from collections import Counter
+
+    X_base_hourly = X_base.loc[X_base.index.minute == 0]
+    y_base_hourly = y_base.loc[y_base.index.minute == 0]
+    X_test_hourly = X_test.loc[X_test.index.minute == 0]
+    y_test_hourly = y_test.loc[y_test.index.minute == 0]
+    X_hourly = pd.concat([X_base_hourly, X_test_hourly], axis=0)
+    y_hourly = pd.concat([y_base_hourly, y_test_hourly], axis=0)
+    df = pd.concat([X_hourly, y_hourly], axis=1)
+
+    # ToDo Find eps via Rank-list of kNN
+    DB = DBSCAN(eps=0.6, min_samples=100)
+    clusters = DB.fit(df)
+    counts = Counter(clusters.labels_)
+
+    # outliers can be ascribed to faulty target since covariates are assumed correct
+    outlier_labels = [-1]
+    outlier_index = [i for i, label in enumerate(clusters.labels_) if label in outlier_labels]
+    outliers = df.iloc[outlier_index, :]
+
+    plt.plot(df.iloc[:, -1], alpha=0.5, label='data')
+    plt.scatter(outliers.index, outliers.iloc[:, -1], color='red', marker='*', label='outliers')
+    plt.title('DBSCAN outliers')
+    plt.legend()
+    plt.show()
+
+    # Count outliers per week
+    nItemsPerWeek = 24 * 7
+    threashold_outliers = 40
+    for i in range(len(df) - nItemsPerWeek):
+        dstart = df.index.iloc[i]
+        dend = dstart + datetime.timedelta(days=7)
+        outliers_week = outliers.loc[outliers.index > dstart & outliers.index < dend]
+
+
     pass
 
 if sModel == 'TR':
