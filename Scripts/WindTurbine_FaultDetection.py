@@ -14,15 +14,15 @@ from scipy.stats import norm
 PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribution is smaller than this
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
 TRAIN_MODEL = True
-sModel = 'DBSCAN'  # 'TR' #'GP'
+sModel = 'LR'  # 'TR' #'GP'
 
 def getSevereFaults(isfaulty):
     # detect severe fault from single faults
     # severe fault is a fault lasting for at least one week = 6 * 24 * 7 measurement points
 
-    nHourInterval = (isfaulty.index[1] - isfault.index[0]).total_seconds / 3600
+    nHourInterval = (isfaulty.index[1] - isfaulty.index[0]).total_seconds() / 3600
 
-    nIntervalsPerWeek = 24 * 7 / nHourInterval  # 10 minute slots
+    nIntervalsPerWeek = int(24 * 7 / nHourInterval)  # 10 minute slots
     severeFault = np.zeros(len(isfaulty))
 
     for i in range(nIntervalsPerWeek, len(isfaulty)):
