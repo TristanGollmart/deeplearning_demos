@@ -14,7 +14,7 @@ from scipy.stats import norm
 PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribution is smaller than this
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
 TRAIN_MODEL = True
-sModel = 'LR'  # 'TR' #'GP'
+sModel = 'LR_lag'  # 'TR' #'GP'
 
 def getSevereFaults(isfaulty):
     # detect severe fault from single faults
@@ -29,6 +29,12 @@ def getSevereFaults(isfaulty):
         severeFault[i] = np.average(isfaulty.iloc[i - nIntervalsPerWeek:i]) > PROBABILITY_CUTOFF_SEVERE
     return pd.Series(data=severeFault, index=isfaulty.index)
 
+def add_lag(X, y, lag=1):
+    X_lag = X.shift(lag)
+    X_lag.columns = [col + '_lag' for col in X.columns]
+    y_lag = pd.DataFrame(y.shift(lag))
+    X = pd.concat([X, X_lag, y_lag, y], axis=1).dropna()
+    return X.iloc[:, :-1], X.iloc[:, -1]
 # Preprocessing data
 df = pd.read_csv(r'..\data\Wind_FaultDetection\wind_data.csv')
 
@@ -72,6 +78,37 @@ if sModel == 'LR':
 
     isfaulty = pd.Series(data=(norm.pdf(residuals, loc=0, scale=std) < PROBABILITY_CUTOFF), index=y_test.index)
     ax2.plot(isfaulty, alpha=0.6, color='orange', label='faulty')
+    severeFault = getSevereFaults(isfaulty)
+
+    ax2.plot(severeFault, alpha=0.7, color='red', label='severe')
+    fig.legend(loc='upper right')
+    plt.show()
+
+if sModel == 'LR_lag':
+    # ...with lag
+    X_base_lag, y_base = add_lag(X_base, y_base, lag=24*7*6)
+    X_test_lag, y_test = add_lag(X_test, y_test, lag=24*7*6)
+    LR = LinearRegression()
+    LR.fit(X_base_lag, y_base)
+    y_pred_base = LR.predict(X_base_lag)
+    mse_base = mean_squared_error(y_base, y_pred_base)
+    print('mse score on base set: {:.3f}'.format(mse_base))
+
+    y_pred_test = LR.predict(X_test_lag)
+    mse_test = mean_squared_error(y_test, y_pred_test)
+    print('mse score on test set: {:.3f}'.format(mse_test))
+
+    residuals = y_test - y_pred_test
+
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.plot(residuals, alpha=0.2, color='g', label='residuals')
+
+    # assumption residuals epsilon are white noise -> faults at +-3 sigma of epsilon are assumed out of distribution
+    std = np.std(residuals)
+
+    isfaulty = pd.Series(data=(norm.pdf(residuals, loc=0, scale=std) < PROBABILITY_CUTOFF), index=y_test.index)
+    ax2.plot(isfaulty, alpha=0.4, color='orange', label='faulty')
     severeFault = getSevereFaults(isfaulty)
 
     ax2.plot(severeFault, alpha=0.7, color='red', label='severe')
