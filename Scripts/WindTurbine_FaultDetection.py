@@ -137,22 +137,26 @@ if sModel == 'DBSCAN':
     outlier_index = [i for i, label in enumerate(clusters.labels_) if label in outlier_labels]
     outliers = df.iloc[outlier_index, :]
 
-    plt.plot(df.iloc[:, -1], alpha=0.5, label='data')
-    plt.scatter(outliers.index, outliers.iloc[:, -1], color='red', marker='*', label='outliers')
-    plt.title('DBSCAN outliers')
-    plt.legend()
-    plt.show()
+
 
     # Count outliers per week
     nItemsPerWeek = 24 * 7
     threashold_outliers = 40
+    severe_faults = np.zeros(len(df))
     for i in range(len(df) - nItemsPerWeek):
-        dstart = df.index.iloc[i]
+        dstart = df.index[i]
         dend = dstart + datetime.timedelta(days=7)
-        outliers_week = outliers.loc[outliers.index > dstart & outliers.index < dend]
+        outliers_week = outliers.loc[(outliers.index > dstart) & (outliers.index < dend)]
+        if len(outliers_week) > threashold_outliers:
+            severe_faults[i] = 1
 
+    plt.plot(df.iloc[:, -1], alpha=0.5, label='data')
+    plt.scatter(outliers.index, outliers.iloc[:, -1], color='red', marker='*', label='outliers')
+    pd.Series(severe_faults, index= df.index).plot(color='red', label='severe faults')
+    plt.title('DBSCAN outliers')
+    plt.legend()
+    plt.show()
 
-    pass
 
 if sModel == 'TR':
     # Reconstructor: Either output -> output or input -> output
