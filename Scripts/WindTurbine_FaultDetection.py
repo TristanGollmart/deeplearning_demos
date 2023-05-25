@@ -1,3 +1,9 @@
+'''
+Selection of models to detect faulty behaviour
+in wind turbine bearing temperature given data in "wind_data.csv"
+(Tristan Gollmart, 17.05.2023)
+'''
+
 import datetime
 
 import pandas as pd
@@ -14,6 +20,7 @@ from scipy.stats import norm
 PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribution is smaller than this
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
 TRAIN_MODEL = True
+VISUALIZE = False
 sModel = 'LR_lag'  # 'TR' #'GP'
 
 def getSevereFaults(isfaulty):
@@ -41,10 +48,14 @@ df = pd.read_csv(r'..\data\Wind_FaultDetection\wind_data.csv')
 X_base, y_base, X_test, y_test = preprocess(df)
 
 # Visualization
-#y_base.plot(label='scaled target data first year')
-#y_test.plot(label='scaled target data second year')
-#plt.legend()
-#plt.show()
+if VISUALIZE:
+    sn.pairplot(df.iloc[:, 2:], markers='+')
+    plt.title('Pairplot of all variables', loc='center', y=4., x=2.)
+    plt.show()
+    #y_base.plot(label='scaled target data first year')
+    #y_test.plot(label='scaled target data second year')
+    #plt.legend()
+    #plt.show()
 
 # ------------ modelling ---------------
 
@@ -193,7 +204,6 @@ if sModel == 'DBSCAN':
     plt.title('DBSCAN outliers')
     plt.legend()
     plt.show()
-
 
 if sModel == 'TR':
     # Reconstructor: Either output -> output or input -> output

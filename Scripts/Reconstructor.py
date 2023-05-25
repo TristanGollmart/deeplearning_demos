@@ -12,9 +12,6 @@ from sklearn.preprocessing import StandardScaler
 
 WINDOW_SIZE = 20
 
-
-
-
 def transform_input_1d(x, seq_length):
     '''
     Transforms 1D Input to the 3D format expected by Reconstructor
