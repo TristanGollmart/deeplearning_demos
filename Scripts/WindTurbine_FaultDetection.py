@@ -21,7 +21,7 @@ PROBABILITY_CUTOFF = 0.1  # mark as faulty if probability to be of the distribut
 PROBABILITY_CUTOFF_SEVERE = 0.6  # mark as severe if average probability over one week exceeds this value
 TRAIN_MODEL = True
 VISUALIZE = False
-sModel = 'LR_lag'  # 'TR' #'GP'
+sModel = 'TR' # 'LR_lag'  # 'GP'
 
 def getSevereFaults(isfaulty):
     # detect severe fault from single faults

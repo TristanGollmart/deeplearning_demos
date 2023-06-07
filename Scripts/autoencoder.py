@@ -46,7 +46,7 @@ encode = MaxPool2D(pool_size=(2, 2))(encode)
 
 decode = Conv2D(5, kernel_size=(3, 3), padding='same', activation='relu')(encode)
 decode = UpSampling2D(size=(2, 2))(decode)
-decode = Conv2D(1, kernel_size=(3, 3), padding='same', activation='sigmoid')(decode)
+decode = Conv2D(1, kernel_size=(3, 3), pading='same', activation='sigmoid')(decode)
 
 model = Model(input, decode)
 
