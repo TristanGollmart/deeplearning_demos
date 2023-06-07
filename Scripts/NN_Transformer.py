@@ -1,6 +1,6 @@
 
 # read shakespeare dataset
-with open("..\data\NN_Transformer\tinyshakespeare.txt", encoding="utf-8") as f:
+with open(file=r"..\\data\\NN_Transformer\\tinyshakespeare.txt", encoding="utf-8") as f:
     text = f.read()
 
 print("length of text: ", len(text))
@@ -22,3 +22,8 @@ print(encode("hii there"))
 import torch
 data = torch.tensor(encode(text), dtype=torch.long)
 print(data.shape)
+
+# train test split
+n = int(0.9*len(data))
+train_data = data[:n]
+val_data = data[n:]
