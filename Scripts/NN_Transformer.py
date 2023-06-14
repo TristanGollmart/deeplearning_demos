@@ -67,17 +67,27 @@ xb, yb = get_batch('train')
 print(xb.shape, yb.shape)
 
 # BigramLanguageModel
-class BigramLanguageModel(nn.Module)
+class BigramLanguageModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
-        # just get  token embedding from a lookup table
+        # just get token embedding from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
 
     def forward(self, idx, targets):
         # embeds the (B,T)-Tensor into a (B,T,C) tensor, C is analog of channels in ConvNets
         logits = self.token_embedding_table(idx)
-        return logits
+        # for learning embedding: measure loss of prediction of next character from look up table compared to real sequence <target>
+        B, T, C = logits.shape
+        logits = logits.view(B*T, C) # shape that cross entropy expects
+        targets = targets.view(B*T)
+        loss = F.cross_entropy(logits, targets)
+        return logits, loss
 
 m = BigramLanguageModel(vocab_size)
-out = m(xb, yb)
-print(out.shape)
+# embed vector of size vocab_size (65), where each entry represents probability for next character:
+# most simple: ohe: "a" of 100% -> 0 -> (1, 0, ...., 0, 0)
+# very simple embedding since does not take into account
+# any interactions between tokens: "a" is just "a" disregarding previous letters
+
+logits, loss = m(xb, yb)
+print(logits.shape)
