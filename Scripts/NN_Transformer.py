@@ -1,3 +1,4 @@
+import numpy as np
 
 # read shakespeare dataset
 with open(file=r"..\\data\\NN_Transformer\\tinyshakespeare.txt", encoding="utf-8") as f:
@@ -91,3 +92,23 @@ m = BigramLanguageModel(vocab_size)
 
 logits, loss = m(xb, yb)
 print(logits.shape)
+B, T, C = logits.view(batch_size, block_size, -1).shape
+
+# calc average of preovious tokens
+# use bow (bag of words) since just averaging, no weighted/ learnable connections
+# like self attention
+
+x = torch.randn(B, T, C)
+xbow = torch.zeros((B, T, C))
+for b in range(B):
+    for t in range(T):
+        xprev = x[b: t+1] # shape (t, C)
+        xbow[b, t] = torch.mean(xprev, 1).view(-1)
+
+# here efficient implementation of above algebra using vectorization
+
+wei = torch.tril(torch.ones(T, T))
+wei = wei / torch.sum(wei, 1, keepdim=True)
+xbow2 = wei @ x # (T,T) @ (B, T, C) -> (B, T, C)
+
+print(np.isclose(xbow, xbow2))
