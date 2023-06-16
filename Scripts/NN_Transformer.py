@@ -1,5 +1,12 @@
 import numpy as np
 
+# hyperparameters
+batch_size = 4
+block_size = 8
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+n_embd = 32
+# ----------------
+
 # read shakespeare dataset
 with open(file=r"..\\data\\NN_Transformer\\tinyshakespeare.txt", encoding="utf-8") as f:
     text = f.read()
@@ -37,7 +44,7 @@ torch.manual_seed(42)
 
 # Example: split into chunks for statistical learning of different attention heads
 # on blocks of all different length up to block_size
-block_size = 8
+
 train_data[:block_size+1] # n+1 will lead to n chunks separate chunks of length 1,...,n: "h", "ha", "hal", ...
 def create_chunks(x ,y):
     context = []
@@ -53,7 +60,6 @@ print(context)
 print(target)
 
 # split set into batches
-batch_size = 4
 
 def get_batch(split):
     data = train_data if split == 'train' else val_data
@@ -69,22 +75,29 @@ print(xb.shape, yb.shape)
 
 # BigramLanguageModel
 class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self):
         super().__init__()
         # just get token embedding from a lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
-
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.lm_head = nn.Linear(n_embd, vocab_size)  # language model: maps token embeddings to logits to predict next letter/ word
     def forward(self, idx, targets):
         # embeds the (B,T)-Tensor into a (B,T,C) tensor, C is analog of channels in ConvNets
-        logits = self.token_embedding_table(idx)
+        B, T = idx.shape
+
+
+        tok_emb = self.token_embedding_table(idx) # (B, T, C)
+        pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T, C)
+        logits = self.lm_head(tok_emb) # (B, T, vocab_size)
         # for learning embedding: measure loss of prediction of next character from look up table compared to real sequence <target>
         B, T, C = logits.shape
+        x = tok_emb + pos_emb # (B, T, C)
         logits = logits.view(B*T, C) # shape that cross entropy expects
         targets = targets.view(B*T)
         loss = F.cross_entropy(logits, targets)
         return logits, loss
 
-m = BigramLanguageModel(vocab_size)
+m = BigramLanguageModel()
 # embed vector of size vocab_size (65), where each entry represents probability for next character:
 # most simple: ohe: "a" of 100% -> 0 -> (1, 0, ...., 0, 0)
 # very simple embedding since does not take into account
@@ -92,23 +105,35 @@ m = BigramLanguageModel(vocab_size)
 
 logits, loss = m(xb, yb)
 print(logits.shape)
-B, T, C = logits.view(batch_size, block_size, -1).shape
+
 
 # calc average of preovious tokens
 # use bow (bag of words) since just averaging, no weighted/ learnable connections
 # like self attention
-
+B, T, C = batch_size, block_size, n_embd
 x = torch.randn(B, T, C)
 xbow = torch.zeros((B, T, C))
 for b in range(B):
     for t in range(T):
-        xprev = x[b: t+1] # shape (t, C)
-        xbow[b, t] = torch.mean(xprev, 1).view(-1)
+        xprev = x[b,:t+1] # shape (t, C)
+        xbow[b, t] = torch.mean(xprev, 0)
 
 # here efficient implementation of above algebra using vectorization
+# wei = (0,..., 0) : Bag of words. can also be learnable weights to encode interaction strength "self attention", just weighted aggregation
 
-wei = torch.tril(torch.ones(T, T))
-wei = wei / torch.sum(wei, 1, keepdim=True)
-xbow2 = wei @ x # (T,T) @ (B, T, C) -> (B, T, C)
+# single Head
+head_size = 16
+key = nn.Linear(C, head_size, bias=False)
+query = nn.Linear(C, head_size, bias=False)
+k = key(x) # (B,T,headsize)
+q = query(x)
+# interaction of queries and keys
+wei = q @ k.transpose(-2, -1) # (B,T,16) @ (B,16,T) ---> (B,T,T)
 
-print(np.isclose(xbow, xbow2))
+tril = torch.tril(torch.ones(T, T))
+# wei = torch.zeros((T, T)) #: no interaction
+wei = wei.masked_fill(tril==0, float('-inf')) # s.t. softmax(wei) = lower Triangular
+wei = F.softmax(wei, dim=-1)
+xbow2 = wei @ x # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
+
+print(np.isclose(xbow, xbow2, rtol=1e-4).all())
