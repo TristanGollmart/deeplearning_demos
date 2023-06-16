@@ -123,8 +123,9 @@ for b in range(B):
 
 # single Head
 head_size = 16
-key = nn.Linear(C, head_size, bias=False)
-query = nn.Linear(C, head_size, bias=False)
+key = nn.Linear(C, head_size, bias=False)   # information about token
+query = nn.Linear(C, head_size, bias=False)  # what information token is looking for
+value = nn.Linear(C, head_size, bias=False)  # passed value of token
 k = key(x) # (B,T,headsize)
 q = query(x)
 # interaction of queries and keys
@@ -134,6 +135,7 @@ tril = torch.tril(torch.ones(T, T))
 # wei = torch.zeros((T, T)) #: no interaction
 wei = wei.masked_fill(tril==0, float('-inf')) # s.t. softmax(wei) = lower Triangular
 wei = F.softmax(wei, dim=-1)
-xbow2 = wei @ x # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
+v = value(x)
+xbow2 = wei @ v # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
 
 print(np.isclose(xbow, xbow2, rtol=1e-4).all())
