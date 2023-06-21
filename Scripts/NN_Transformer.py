@@ -1,4 +1,7 @@
 import numpy as np
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
 
 # hyperparameters
 batch_size = 4
@@ -27,9 +30,6 @@ decode = lambda lst: "".join([int_to_char[i] for i in lst])  # maps list of inte
 print(encode("hii there"))
 
 # encode the whole input text
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
 
 data = torch.tensor(encode(text), dtype=torch.long)
 print(data.shape)
