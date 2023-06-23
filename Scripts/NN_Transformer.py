@@ -84,8 +84,6 @@ class BigramLanguageModel(nn.Module):
     def forward(self, idx, targets):
         # embeds the (B,T)-Tensor into a (B,T,C) tensor, C is analog of channels in ConvNets
         B, T = idx.shape
-
-
         tok_emb = self.token_embedding_table(idx) # (B, T, C)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T, C)
         logits = self.lm_head(tok_emb) # (B, T, vocab_size)
