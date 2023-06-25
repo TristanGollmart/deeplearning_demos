@@ -84,9 +84,9 @@ class Head(nn.Module):
     # implements a single Head of self-Attention
     def __init__(self, head_size):
         super().__init__()
-        self.key = nn.Linear(C, head_size, bias=False)  # information about token
-        self.query = nn.Linear(C, head_size, bias=False)  # what information token is looking for
-        self.value = nn.Linear(C, head_size, bias=False)  # passed value of token
+        self.key = nn.Linear(n_embd, head_size, bias=False)  # information about token
+        self.query = nn.Linear(n_embd, head_size, bias=False)  # what information token is looking for
+        self.value = nn.Linear(n_embd, head_size, bias=False)  # passed value of token
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
 
     def forward(self, x):
@@ -100,6 +100,15 @@ class Head(nn.Module):
         wei = F.softmax(wei, dim=-1)  # make it an interaction distribution: sum_j(w_ij) = 1 for all i
         return wei @ v # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
 
+class MultiHeadAttention(nn.Module):
+    # implements multi-head attention
+    # by concatenation of single head results in channel dimension
+    def __init__(self, head_size, num_heads):
+        super(MultiHeadAttention, self).__init__()
+        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+
+    def forward(self, x):
+        return torch.cat([h(x) for h in self.heads], dim=-1)
 
 # BigramLanguageModel
 class BigramLanguageModel(nn.Module):
@@ -108,7 +117,7 @@ class BigramLanguageModel(nn.Module):
         # just get token embedding from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.sa_head = Head(n_embd)  # self attention head
+        self.sa_heads = MultiHeadAttention(4, n_embd/4)  # 4 self attention heads of embedding dimension 32/4 = 8
         self.lm_head = nn.Linear(n_embd, vocab_size)  # language model: maps token embeddings to logits to predict next letter/ word
 
     def forward(self, idx, targets=None):
@@ -117,7 +126,7 @@ class BigramLanguageModel(nn.Module):
         tok_emb = self.token_embedding_table(idx) # (B, T, C)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T, C)
         x = tok_emb + pos_emb  # (B, T, C)
-        x = self.sa_head(x)
+        x = self.sa_heads(x)
         logits = self.lm_head(x) # (B, T, vocab_size), decodes the encoded values <wei*v> of the self-attention block
         # for learning embedding: measure loss of prediction of next character from look up table compared to real sequence <target>
 
@@ -173,3 +182,4 @@ B, T, C = batch_size, block_size, n_embd
 
 
 # ------------------------ TRAIN MODEL -------------------------
+print("start Training")
