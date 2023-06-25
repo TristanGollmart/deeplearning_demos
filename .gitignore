@@ -1,7 +1,6 @@
 data/PetImages
 data/PredictiveMaintanance
 *.zip
-*.ipynb
 *.pkl
 
 

@@ -2,12 +2,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import torch.optim as optim
 
 # hyperparameters
 batch_size = 4
 block_size = 8
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 n_embd = 32
+
+max_iters = 5000
+eval_interval = 500
+lr = 1e-3
+eval_iters = 200
+
 # ----------------
 
 # read shakespeare dataset
@@ -73,6 +80,27 @@ def get_batch(split):
 xb, yb = get_batch('train')
 print(xb.shape, yb.shape)
 
+class Head(nn.Module):
+    # implements a single Head of self-Attention
+    def __init__(self, head_size):
+        super().__init__()
+        self.key = nn.Linear(C, head_size, bias=False)  # information about token
+        self.query = nn.Linear(C, head_size, bias=False)  # what information token is looking for
+        self.value = nn.Linear(C, head_size, bias=False)  # passed value of token
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape
+        k = self.key(x) # (Batch, Block, Headsize)
+        q = self.query(x) # self attention: get query from same input instead of external source
+        v = self.value(x)
+        # interaction score of queries and keys
+        wei = q @ k.transpose(-2, -1) # (B,T,16) @ (B,16,T) ---> (B,T,T): (b, i, j) = interaction of point i with point j
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf')) # (B, T, T) s.t. softmax(wei) = lower Triangular
+        wei = F.softmax(wei, dim=-1)  # make it an interaction distribution: sum_j(w_ij) = 1 for all i
+        return wei @ v # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
+
+
 # BigramLanguageModel
 class BigramLanguageModel(nn.Module):
     def __init__(self):
@@ -80,20 +108,44 @@ class BigramLanguageModel(nn.Module):
         # just get token embedding from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.sa_head = Head(n_embd)  # self attention head
         self.lm_head = nn.Linear(n_embd, vocab_size)  # language model: maps token embeddings to logits to predict next letter/ word
-    def forward(self, idx, targets):
+
+    def forward(self, idx, targets=None):
         # embeds the (B,T)-Tensor into a (B,T,C) tensor, C is analog of channels in ConvNets
         B, T = idx.shape
         tok_emb = self.token_embedding_table(idx) # (B, T, C)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T, C)
-        logits = self.lm_head(tok_emb) # (B, T, vocab_size)
+        x = tok_emb + pos_emb  # (B, T, C)
+        x = self.sa_head(x)
+        logits = self.lm_head(x) # (B, T, vocab_size), decodes the encoded values <wei*v> of the self-attention block
         # for learning embedding: measure loss of prediction of next character from look up table compared to real sequence <target>
-        B, T, C = logits.shape
-        x = tok_emb + pos_emb # (B, T, C)
-        logits = logits.view(B*T, C) # shape that cross entropy expects
-        targets = targets.view(B*T)
-        loss = F.cross_entropy(logits, targets)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, C = logits.shape
+            logits = logits.view(B*T, C) # shape that cross entropy expects
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
         return logits, loss
+
+    def generate(self, idx, max_new_tokens):
+        # generates max_new_tokens new tokens from idx
+        # idx: (B, T) array
+        for _ in range(max_new_tokens):
+            # crop idx to the last block size tokens, so that items stay within scope of positional embedding layer
+            idx_cond = idx[:, -block_size:]
+            logits, loss = self(idx_cond)
+            # focus on last time step
+            logits = logits[:, -1, :]
+            probs = F.softmax(logits, dim=-1)
+            # sample from this distribution
+            idx_next = torch.multinomial(probs, num_samples=1)
+            idx = torch.cat([idx, idx_next], dim=1) # (B, T+1)
+        return idx
+
 
 m = BigramLanguageModel()
 # embed vector of size vocab_size (65), where each entry represents probability for next character:
@@ -109,31 +161,15 @@ print(logits.shape)
 # use bow (bag of words) since just averaging, no weighted/ learnable connections
 # like self attention
 B, T, C = batch_size, block_size, n_embd
-x = torch.randn(B, T, C)
-xbow = torch.zeros((B, T, C))
-for b in range(B):
-    for t in range(T):
-        xprev = x[b,:t+1] # shape (t, C)
-        xbow[b, t] = torch.mean(xprev, 0)
+# x = torch.randn(B, T, C)
+# xbow = torch.zeros((B, T, C))
+# for b in range(B):
+#     for t in range(T):
+#         xprev = x[b,:t+1] # shape (t, C)
+#         xbow[b, t] = torch.mean(xprev, 0)
 
 # here efficient implementation of above algebra using vectorization
 # wei = (0,..., 0) : Bag of words. can also be learnable weights to encode interaction strength "self attention", just weighted aggregation
 
-# single Head
-head_size = 16
-key = nn.Linear(C, head_size, bias=False)   # information about token
-query = nn.Linear(C, head_size, bias=False)  # what information token is looking for
-value = nn.Linear(C, head_size, bias=False)  # passed value of token
-k = key(x) # (B,T,headsize)
-q = query(x)
-# interaction of queries and keys
-wei = q @ k.transpose(-2, -1) # (B,T,16) @ (B,16,T) ---> (B,T,T)
 
-tril = torch.tril(torch.ones(T, T))
-# wei = torch.zeros((T, T)) #: no interaction
-wei = wei.masked_fill(tril==0, float('-inf')) # s.t. softmax(wei) = lower Triangular
-wei = F.softmax(wei, dim=-1)
-v = value(x)
-xbow2 = wei @ v # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
-
-print(np.isclose(xbow, xbow2, rtol=1e-4).all())
+# ------------------------ TRAIN MODEL -------------------------
