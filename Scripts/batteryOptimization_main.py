@@ -64,30 +64,8 @@ Y_END = 2039
 #     df_capMax.to_csv(input_path + file_names['CapacityMax'], index=False)
 #     df_ResLoad.to_csv(input_path + file_names['ResLoad'], index=False)
 # -----------------------------------------------------------------------------
-def get_datelist_singleJob(y, nJobs, iJob, nItems, nSubsample):
-    '''
 
-    :param y: year
-    :param iJob: for multi threading: which thread is used
-    :param nJobs: for multi threading: how many threads are used in total
-    :param nItems: how many items (for this purpose hours) per optimization period. If 1 week then 24*7=168 items
-    :param nSubsample: Factor how many samples are left out for performance
-    :return: list of dates for this Job to optimize
-    '''
-
-    dtemp = datetime.strptime("{}.01.01".format(y), "%Y.%m.%d") + timedelta(hours=nItems * nSubsample * iJob)
-    # monday
-    if dtemp.weekday() == 0:
-        dtemp = dtemp + timedelta(days=1)
-
-    dateend = datetime.strptime("{}.01.01".format(y+1), "%Y.%m.%d")
-    datelist = []
-    while dtemp < dateend:
-        datelist.append(dtemp)
-        dtemp += timedelta(hours=nItems*nSubsample*nJobs)
-
-    return datelist
-def start_optimization(input_path, datelist):
+def start_optimization(input_path, multithreading=False):
     '''
     Starts up the Optimization scheme for battery usage
     writes csv-output to output-Folder
@@ -97,17 +75,15 @@ def start_optimization(input_path, datelist):
     :return: list of optimized profits for each year
     '''
 
-    ystart = min(datelist).year
-    yend = max(datelist).year
-    year_list = range(ystart, yend+1, 1)
+    year_list = range(Y_START, Y_END+1, 1)
 
     df_profits, years = pd.DataFrame(), []
     for y in year_list:
-        datelist_single = [d for d in datelist if d.year == y]
+
         try:
             print("Starting year {}: {}".format(y, datetime.now()))
-            profits_singleYear = start_optimization_single_year(input_path, y, datelist_single)
-            print("Finished single Capacity for year {}: {}".format(y, datetime.now()))
+            profits_singleYear = start_optimization_single_year(input_path, y, multithreading)
+            print("Finished optimization for year {}: {}".format(y, datetime.now()))
 
             if df_profits.columns.tolist() == []:
                 df_profits = pd.DataFrame(columns=profits_singleYear.columns)
@@ -131,34 +107,32 @@ def start_optimization(input_path, datelist):
 print('finished')
 
 
-def start_optimization_MT(input_path):
-    '''
-    Ruft jeweils die funktion "start_optimization" auf mit einer Liste <year_list> von den Jahren,
-    die diese Instanz rechnen soll
-    :param input_path:
-    :return: Schreibt Parameter der Optimierung raus
-    '''
-
-    nJobs = 15
-    ystart = 2035
-    yend = 2049
-
-    for y in range(ystart, yend+1):
-        args = []
-        for iJob in range(nJobs):
-            datelist = get_datelist_singleJob(y, nJobs, iJob, nItems=7*24, nSubsample=2)
-            args.append((input_path, datelist))
-
-        with Pool(nJobs) as p:
-            print(p.starmap(start_optimization, args))
-
-if __name__=='__main__':
+# def start_optimization_MT(input_path):
+#     '''
+#     Ruft jeweils die funktion "start_optimization" auf mit einer Liste <year_list> von den Jahren,
+#     die diese Instanz rechnen soll
+#     :param input_path:
+#     :return: Schreibt Parameter der Optimierung raus
+#     '''
+#
+#     nJobs = 1
+#     ystart = 2035
+#     yend = 2049
+#
+#     for y in range(ystart, yend+1):
+#         args = []
+#         for iJob in range(nJobs):
+#             datelist = get_datelist_singleJob(y, nJobs, iJob, nItems=7*24, nSubsample=2)
+#             args.append((input_path, datelist))
+#
+#         with Pool(nJobs) as p:
+#             results = p.starmap(start_optimization, args)
+#         print(results)
+if __name__ == '__main__':
 
     # single thread
-    # y = 2039
-    # datelist = get_datelist_singleJob(y, 1, 0, nItems=7 * 24, nSubsample=2)
-    # profits = start_optimization(input_path, datelist)
+    profits = start_optimization(input_path, multithreading=True)
     #profits.to_csv(input_path + r'Outputs\Profits.csv', sep=';', mode='w')
 
     # multi threaded
-    start_optimization_MT(input_path)
+    # start_optimization_MT(input_path)

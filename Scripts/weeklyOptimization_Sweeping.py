@@ -138,15 +138,15 @@ def start_optimization_single_week(input_path, file_names, y, d, nHours):
 
     column_names = ['Capa_HH{}_RFExcess{}'.format(capacity_steps * i, j) for (i, j) in
                     np.array(np.meshgrid(range(len(capacities_HH)), range(len(capacities_RF_excess)))).T.reshape(-1, 2)] # range(len(profits_singleDay))]
-    hour_list = [datetime(year=y, month=1, day=1) + timedelta(days=d) + timedelta(hours=h) for h in range(nHours)]
+    hour_list = [d + timedelta(hours=h) for h in range(nHours)]
     profits_singleDay = pd.DataFrame(np.reshape(profits_singleDay, (1, -1)), columns=column_names,
-                                   index=[datetime(year=y, month=1, day=1) + timedelta(hours=d * nHours)])
+                                   index=[d])
     spotPrices_singleDay = pd.DataFrame(np.array(spotPrice_day).transpose(), columns = column_names,
                                    index=hour_list)
     capacity_RF = pd.DataFrame(np.reshape(capacities_RF, (1, -1)), columns = column_names,
-                                   index=[datetime(year=y, month=1, day=1) + timedelta(days=d)])
+                                   index=[d])
     capacity_RF_Excess_singleDay = pd.DataFrame(np.reshape(capacities_RF_Excess, (1, -1)), columns = column_names,
-                                   index=[datetime(year=y, month=1, day=1) + timedelta(days=d)])
+                                   index=[d])
     fill_factor_HH_day = pd.DataFrame(np.array(fill_factor_HH_day).transpose(), columns=column_names,
                                    index=hour_list)
     fill_factor_RF_lo_day = pd.DataFrame(np.array(fill_factor_RF_lo_day).transpose(), columns=column_names,
