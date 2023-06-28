@@ -85,9 +85,9 @@ class FeedForward(nn.Module):
     def __init__(self, n_embd):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embd, n_embd),
+            nn.Linear(n_embd, 4 * n_embd), # from paper porject 512 -> 2048 dimensions
             nn.ReLU(),
-            nn.Linear(n_embd, n_embd)
+            nn.Linear(4 * n_embd, n_embd)
         )
 
     def forward(self, x):
@@ -135,11 +135,13 @@ class Block(nn.Module):
         head_size = n_embd // n_head
         self.sa = MultiHeadAttention(head_size, n_head)
         self.ffwd = FeedForward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd) # pre-norm formulation, unlike the original paper!
+        self.ln2 = nn.LayerNorm(n_embd)
 
     def forward(self, x):
         # self attention, followed by feed forward nn with skip connections
-        x = x + self.sa(x)
-        x = x + self.ffwd(x)
+        x = x + self.sa(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x))
         return x
 
 # BigramLanguageModel
@@ -155,6 +157,7 @@ class BigramLanguageModel(nn.Module):
             Block(n_embd, n_head=4),
             Block(n_embd, n_head=4),
             Block(n_embd, n_head=4),
+            nn.LayerNorm(n_embd),
         )
 
     def forward(self, idx, targets=None):
@@ -195,30 +198,38 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
-m = BigramLanguageModel()
+model = BigramLanguageModel()
+m = model.to(device)
 # embed vector of size vocab_size (65), where each entry represents probability for next character:
 # most simple: ohe: "a" of 100% -> 0 -> (1, 0, ...., 0, 0)
 # very simple embedding since does not take into account
 # any interactions between tokens: "a" is just "a" disregarding previous letters
 
-logits, loss = m(xb, yb)
-print(logits.shape)
 
 
-# calc average of preovious tokens
-# use bow (bag of words) since just averaging, no weighted/ learnable connections
-# like self attention
+
+
 B, T, C = batch_size, block_size, n_embd
-# x = torch.randn(B, T, C)
-# xbow = torch.zeros((B, T, C))
-# for b in range(B):
-#     for t in range(T):
-#         xprev = x[b,:t+1] # shape (t, C)
-#         xbow[b, t] = torch.mean(xprev, 0)
-
-# here efficient implementation of above algebra using vectorization
-# wei = (0,..., 0) : Bag of words. can also be learnable weights to encode interaction strength "self attention", just weighted aggregation
 
 
 # ------------------------ TRAIN MODEL -------------------------
 print("start Training")
+optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+
+for iter in range(max_iters):
+
+    if iter % eval_interval == 0 or iter == max_iters-1:
+        losses = eval_loss()
+        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
+    # batch of data
+    xb, yb = get_batch('train')
+    logits, loss = m(xb, yb)
+    # print(logits.shape)
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+
+# generate text from trained model
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(decode(m.generate(context, max_new_tokens=500)[0].to_list()))
