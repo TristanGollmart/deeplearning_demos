@@ -80,6 +80,20 @@ def get_batch(split):
 xb, yb = get_batch('train')
 print(xb.shape, yb.shape)
 
+class FeedForward(nn.Module):
+    # simple feed forward neural net
+    def __init__(self, n_embd):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embd, n_embd),
+            nn.ReLU(),
+            nn.Linear(n_embd, n_embd)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class Head(nn.Module):
     # implements a single Head of self-Attention
     def __init__(self, head_size):
@@ -100,15 +114,33 @@ class Head(nn.Module):
         wei = F.softmax(wei, dim=-1)  # make it an interaction distribution: sum_j(w_ij) = 1 for all i
         return wei @ v # (T,T) @ (B, T, C) -> (B), (T, C) = (B, T, C)
 
+
 class MultiHeadAttention(nn.Module):
     # implements multi-head attention
     # by concatenation of single head results in channel dimension
     def __init__(self, head_size, num_heads):
         super(MultiHeadAttention, self).__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+        self.proj = nn.Linear(n_embd, n_embd)
+    def forward(self, x):
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.proj(out)
+        return out
+
+
+class Block(nn.Module):
+    # implements one block of multi-head self-attention followed by "in-node" postprocessing
+    def __init__(self, n_embd, n_head):
+        super.__init__()
+        head_size = n_embd // n_head
+        self.sa = MultiHeadAttention(head_size, n_head)
+        self.ffwd = FeedForward(n_embd)
 
     def forward(self, x):
-        return torch.cat([h(x) for h in self.heads], dim=-1)
+        # self attention, followed by feed forward nn with skip connections
+        x = x + self.sa(x)
+        x = x + self.ffwd(x)
+        return x
 
 # BigramLanguageModel
 class BigramLanguageModel(nn.Module):
@@ -117,8 +149,13 @@ class BigramLanguageModel(nn.Module):
         # just get token embedding from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.sa_heads = MultiHeadAttention(4, n_embd/4)  # 4 self attention heads of embedding dimension 32/4 = 8
+        # self.sa_heads = MultiHeadAttention(4, n_embd/4)  # 4 self attention heads of embedding dimension 32/4 = 8
         self.lm_head = nn.Linear(n_embd, vocab_size)  # language model: maps token embeddings to logits to predict next letter/ word
+        self.blocks = nn.Sequential(
+            Block(n_embd, n_head=4),
+            Block(n_embd, n_head=4),
+            Block(n_embd, n_head=4),
+        )
 
     def forward(self, idx, targets=None):
         # embeds the (B,T)-Tensor into a (B,T,C) tensor, C is analog of channels in ConvNets
@@ -126,7 +163,9 @@ class BigramLanguageModel(nn.Module):
         tok_emb = self.token_embedding_table(idx) # (B, T, C)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T, C)
         x = tok_emb + pos_emb  # (B, T, C)
-        x = self.sa_heads(x)
+
+        x = self.blocks(x)
+
         logits = self.lm_head(x) # (B, T, vocab_size), decodes the encoded values <wei*v> of the self-attention block
         # for learning embedding: measure loss of prediction of next character from look up table compared to real sequence <target>
 
