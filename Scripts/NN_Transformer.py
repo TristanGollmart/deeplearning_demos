@@ -5,8 +5,8 @@ from torch.nn import functional as F
 import torch.optim as optim
 
 # hyperparameters
-batch_size = 4
-block_size = 8
+batch_size = 16
+block_size = 128
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 n_embd = 32
 
@@ -131,7 +131,7 @@ class MultiHeadAttention(nn.Module):
 class Block(nn.Module):
     # implements one block of multi-head self-attention followed by "in-node" postprocessing
     def __init__(self, n_embd, n_head):
-        super.__init__()
+        super(Block, self).__init__()
         head_size = n_embd // n_head
         self.sa = MultiHeadAttention(head_size, n_head)
         self.ffwd = FeedForward(n_embd)
@@ -147,7 +147,7 @@ class Block(nn.Module):
 # BigramLanguageModel
 class BigramLanguageModel(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(BigramLanguageModel, self).__init__()
         # just get token embedding from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
@@ -198,6 +198,20 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
+@torch.no_grad()
+def estimate_loss():
+    out = {}
+    model.eval()
+    for split in ['train', 'val']:
+        losses = torch.zeros(eval_iters)
+        for k in range(eval_iters):
+            X, Y = get_batch(split)
+            logits, loss = model(X, Y)
+            losses[k] = loss.item()
+        out[split] = losses.mean()
+    model.train()
+    return out
+
 model = BigramLanguageModel()
 m = model.to(device)
 # embed vector of size vocab_size (65), where each entry represents probability for next character:
@@ -219,7 +233,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 for iter in range(max_iters):
 
     if iter % eval_interval == 0 or iter == max_iters-1:
-        losses = eval_loss()
+        losses = estimate_loss()
         print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
     # batch of data
@@ -232,4 +246,5 @@ for iter in range(max_iters):
 
 # generate text from trained model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=500)[0].to_list()))
+text = decode(m.generate(context, max_new_tokens=500)[0].tolist())
+print(text)
