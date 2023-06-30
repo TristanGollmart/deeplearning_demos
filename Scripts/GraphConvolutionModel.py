@@ -2,19 +2,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 import networkx as nx
-import torch.
 device = "cpu"
 
 
-def get_loss(y, ypred):
+def get_loss(ypred, y):
     '''
     :param y:
     :param ypred:
     :return:
     '''
-    if len(np.unique(y)) == 2:
+    if len(np.unique(y.detach())) == 2:
         loss = nn.BCELoss()
     else:
+        # expects logits as predictions!
         loss = nn.CrossEntropyLoss()
     return loss(ypred, y)
 
@@ -64,7 +64,7 @@ class GraphConvLayer(nn.Module):
 
 class GraphConvolutionModel(nn.Module):
     # implements a graph convolutional neural network
-    def __init__(self, adj, n_features, n_embd=10):
+    def __init__(self, adj, n_features, n_embd=10, return_probs=False):
         super(GraphConvolutionModel, self).__init__()
         self.n_data = np.shape(adj)[0]
         self.A = torch.tensor(adj) + torch.diag(torch.ones(self.n_data))
@@ -73,12 +73,15 @@ class GraphConvolutionModel(nn.Module):
         self.n_features = n_features
         self.n_embd = n_embd
         self.gcn = GraphConvLayer(self.A_hat, self.n_features, self.n_embd)
-
+        self.relu = nn.ReLU()
+        self.return_probs = return_probs
 
     def forward(self, node_feats):
         x = self.gcn(node_feats)
         # skip connection: x = x + node_feats
-        return self.ffd2(self.ln2(x))
+        if self.return_probs:
+            x = nn.Sigmoid()(x)
+        return x
 
 graph = nx.karate_club_graph()
 labels = list(set([d['club'] for d in graph._node.values()]))
@@ -91,8 +94,12 @@ graph_features = torch.tensor([labels_to_int[d['club']] for d in graph._node.val
 graph_features = torch.unsqueeze(graph_features, dim=1)
 adj = make_adjacency(graph)
 
-model = GraphConvolutionModel(adj, n_features=1, n_embd=3)
+model = GraphConvolutionModel(adj, n_features=1, n_embd=3, return_probs=True)
 model.to(device, dtype=float)
+
+# print parameter
+for name, param in model.named_parameters():
+    print(name, param)
 
 x_update = model(graph_features)
 print(x_update)
@@ -104,8 +111,8 @@ eval_interval = 100
 
 opt = torch.optim.AdamW(model.parameters(), lr=lr)
 for iter in range(max_iters):
-    logits = model(graph_features)
-    loss = get_loss(logits, graph_features)
+    probs = model(graph_features)
+    loss = get_loss(probs, graph_features)
     if iter % eval_interval == 0 or iter == max_iters-1:
         print(f"step {iter}: train loss {loss:.4f}")
 
