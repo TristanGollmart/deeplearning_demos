@@ -92,6 +92,7 @@ print(graph.nodes)
 
 graph_features = torch.tensor([labels_to_int[d['club']] for d in graph._node.values()], dtype=float) # simply label of which group member belongs to
 graph_features = torch.unsqueeze(graph_features, dim=1)
+features_normalized = graph_features - torch.mean(graph_features)
 adj = make_adjacency(graph)
 
 model = GraphConvolutionModel(adj, n_features=1, n_embd=3, return_probs=True)
@@ -111,7 +112,7 @@ eval_interval = 100
 
 opt = torch.optim.AdamW(model.parameters(), lr=lr)
 for iter in range(max_iters):
-    probs = model(graph_features)
+    probs = model(features_normalized)
     loss = get_loss(probs, graph_features)
     if iter % eval_interval == 0 or iter == max_iters-1:
         print(f"step {iter}: train loss {loss:.4f}")
@@ -119,3 +120,5 @@ for iter in range(max_iters):
     opt.zero_grad(set_to_none=True)
     loss.backward()
     opt.step()
+
+print(model(features_normalized))
