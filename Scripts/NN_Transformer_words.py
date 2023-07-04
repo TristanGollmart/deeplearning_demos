@@ -3,8 +3,11 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import torch.optim as optim
+import re
+
 
 # hyperparameters
+SPLIT_CHARS = [" ", ".", ",", ";", "\n", "!", "?", "\"", ":"]
 batch_size = 16
 block_size = 128
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -23,19 +26,45 @@ with open(file=r"..\\data\\NN_Transformer\\tinyshakespeare.txt", encoding="utf-8
 
 print("length of text: ", len(text))
 
+def get_word_set(mytext: str):
+    re_splitter = "".join(["( ", " | ".join(SPLIT_CHARS), " )"])
+    # word_list = mytext
+   #  word_set = set(re.split(re_splitter, mytext))
+    word_set = set(re.split("(\W)", mytext))
+    return word_set
+
 # tokenize: build a mapping individual chars->numbers
 # also possible to use whole words or subwords -> larger vocab size but shorter encoding, like tiktoken.get_encoding('gpt2')
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
+word_list = get_word_set(text)
+vocab_size = len(word_list)
 print(vocab_size)
 
-def get_word_set(mytext: str):
-    word_list = mytext.split(" ")
 
-char_to_int = {char: i for i, char in enumerate(chars)}
-int_to_char = {i: char for i, char in enumerate(chars)}
-encode = lambda s: [char_to_int[c] for c in s]  # maps string to according integers
-decode = lambda lst: "".join([int_to_char[i] for i in lst])  # maps list of integers to string
+num_chars = len(SPLIT_CHARS)
+char_to_int = {**{char: i for i, char in enumerate(SPLIT_CHARS)}, **{char: i+num_chars for i, char in enumerate(word_list)}}
+int_to_char = {**{i: char for i, char in enumerate(SPLIT_CHARS)}, **{i+num_chars: char for i, char in enumerate(word_list)}}
+
+def encode(mytext):
+    # maps string to according integers
+    re_splitter = "".join(["[ ", " | ".join(SPLIT_CHARS), " ]"])
+    words = set(re.split(re_splitter, mytext))
+    i_list = []
+    for w in words:
+        if w in char_to_int.keys():
+            i_list.append(char_to_int[w])
+        else:
+            i_list.append(len(char_to_int)+1)
+    return i_list
+
+def decode(lst):
+    # maps list of integers to string
+    word_list = []
+    for i in lst:
+        if i in int_to_char.keys():
+            word_list.append(int_to_char[i])
+        else:
+            pass
+    return "".join(word_list)
 
 print(encode("hii there"))
 
