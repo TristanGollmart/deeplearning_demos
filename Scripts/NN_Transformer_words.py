@@ -41,13 +41,17 @@ print(vocab_size)
 
 
 num_chars = len(SPLIT_CHARS)
-char_to_int = {**{char: i for i, char in enumerate(SPLIT_CHARS)}, **{char: i+num_chars for i, char in enumerate(word_list)}}
-int_to_char = {**{i: char for i, char in enumerate(SPLIT_CHARS)}, **{i+num_chars: char for i, char in enumerate(word_list)}}
+#char_to_int = {**{char: i for i, char in enumerate(SPLIT_CHARS)}, **{char: i+num_chars for i, char in enumerate(word_list)}}
+#int_to_char = {**{i: char for i, char in enumerate(SPLIT_CHARS)}, **{i+num_chars: char for i, char in enumerate(word_list)}}
+char_to_int = {char: i for i, char in enumerate(word_list)}
+int_to_char = {i: char for i, char in enumerate(word_list)}
+
 
 def encode(mytext):
     # maps string to according integers
-    re_splitter = "".join(["[ ", " | ".join(SPLIT_CHARS), " ]"])
-    words = set(re.split(re_splitter, mytext))
+    #re_splitter = "".join(["[ ", " | ".join(SPLIT_CHARS), " ]"])
+    re_splitter = "(\W)"
+    words = re.split(re_splitter, mytext)
     i_list = []
     for w in words:
         if w in char_to_int.keys():
@@ -117,7 +121,7 @@ class FeedForward(nn.Module):
     def __init__(self, n_embd):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embd, 4 * n_embd), # from paper porject 512 -> 2048 dimensions
+            nn.Linear(n_embd, 4 * n_embd), # from paper project 512 -> 2048 dimensions
             nn.ReLU(),
             nn.Linear(4 * n_embd, n_embd)
         )
