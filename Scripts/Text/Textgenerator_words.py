@@ -1,18 +1,14 @@
-import numpy as np
-import tensorflow as tf
-from keras.layers import LSTM, Input, Dropout, Dense
-from keras.models import Model
 from keras.utils import to_categorical
-from keras.preprocessing.text import one_hot, text_to_word_sequence
-import pickle
-import requests
-import gensim
-from gensim.models import KeyedVectors
-import os
-from tqdm import tqdm
 import math
+import os
 import zipfile
-from nltk import word_tokenize
+import nltk
+
+import requests
+from gensim.models import KeyedVectors
+from keras.preprocessing.text import text_to_word_sequence
+from keras.utils import to_categorical
+from tqdm import tqdm
 
 # ------ get file ------
 if not os.path.exists(r'..\..\models\Textgenerator\german.model'):
@@ -39,7 +35,6 @@ else:
     print("Datei existiert bereits")
 
 
-
 # ------------------------------
 # Testing vector space embedding
 # -----------------------------
@@ -58,7 +53,6 @@ for k, v in enumerate(words):
 words_tokens = [word_to_int[w] for w in words]
 word_embedding = to_categorical(words_tokens)
 print(word_embedding)
-
 
 
 # -------------- TEST FINISH ----------------
