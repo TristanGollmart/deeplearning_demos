@@ -129,6 +129,7 @@ y_ohe = to_categorical(y, num_classes=vocab_size)
 
 x = np.array(x)
 y_ohe = np.array(y_ohe)
+y = np.array(y)
 
 # >> NO EMBEDDING SINCE MODEL WILL HANDLE THIS INTERNALLY WITH AN EMBEDDING LAYER
 # Build model
@@ -136,38 +137,54 @@ from keras.layers import Embedding, LSTM, Dense
 import tensorflow as tf
 
 class TextGenerator(keras.Model):
-    def __init__(self, vocab_size, n_embed, output_dim, sequence_length, lstm_units=128):
+    def __init__(self, vocab_size, n_embed, output_dim, sequence_length, lstm_units=64):
         super(TextGenerator, self).__init__()
         self.n_embed = n_embed
         self.embedding = Embedding(vocab_size, n_embed, input_length=sequence_length)
         self.lstm1 = LSTM(lstm_units, activation="tanh", return_sequences=True)
-        self.lstm2 = LSTM(lstm_units, activation="tanh", return_sequences=False)
+        self.fc1 = Dense(lstm_units, activation="relu")
+        self.lstm2 = LSTM(lstm_units, activation="tanh", return_sequences=True)
+        self.lstm3 = LSTM(lstm_units, activation="tanh", return_sequences=False)
         self.logits = Dense(output_dim, activation=None)
 
     def call(self, inputs):
         x = self.embedding(inputs)  # B,T -> B,T,C
+        x0 = self.fc1(x)
         x = self.lstm1(x)
         x = self.lstm2(x)
+        x = self.lstm3(x)
+        x = x + x0
         logits = self.logits(x) # possibly add softmax
         return logits
 
+    def generate(self, input, n_words):
+        words = []
+        for _ in range(n_words):
+            y = self.call(tf.expand_dims(input, 0))
+            iword = np.argmax(y)
+            input = tf.concat([input[1:], tf.constant([iword])])
+            words.append(decode([iword]))
+        return words
 
 model = TextGenerator(vocab_size=vocab_size, n_embed=embed_dim, output_dim=vocab_size, sequence_length=block_size)
 model.compile(optimizer="adam",
               loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=[keras.metrics.SparseCategoricalAccuracy(name='acc')])
+              metrics="accuracy") #[keras.metrics.SparseCategoricalAccuracy(name='acc')])
 # test_input = tf.expand_dims([np.random.randint(0, vocab_size) for _ in range(block_size)], axis=0)
-test_input =np.array([[np.random.randint(0, vocab_size) for _ in range(block_size)],
-             [np.random.randint(0, vocab_size) for _ in range(block_size)]])
-test_prediction = model.predict(test_input)
-print(test_prediction.shape)
-i = np.argmax(test_prediction)
-print(int_to_word[i])
+# test_input =np.array([[np.random.randint(0, vocab_size) for _ in range(block_size)],
+#              [np.random.randint(0, vocab_size) for _ in range(block_size)]])
+# test_prediction = model.predict(test_input)
+# print(test_prediction.shape)
+# i = np.argmax(test_prediction)
+# print(int_to_word[i])
+#
+# cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+# print("first loss: ", cce(y_ohe, model.predict(x)).numpy())
 
-cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
-print("first loss: ", cce(y_ohe, model.predict(x)).numpy())
 
+history = model.fit(x, y, epochs=10, validation_split=0.2)
 
-history = model.fit(x, y_ohe, epochs=10)
+words = model.generate(x[0, :], 100)
+model.save(r'..\..\models\Textgenerator\kakfka_model')
 
 print(history)
