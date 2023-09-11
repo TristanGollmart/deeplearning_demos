@@ -12,8 +12,8 @@ from gensim.models import KeyedVectors
 from keras.preprocessing.text import text_to_word_sequence
 from keras.utils import to_categorical
 from keras.models import Sequential
-from tqdm import tqdm
 from sklearn.feature_extraction.text import CountVectorizer
+
 
 # ------ get file ------
 if not os.path.exists(r'..\..\models\Textgenerator\german.model'):
@@ -77,7 +77,7 @@ with open(r"..\..\data\TextGenerator\verwandlung.txt", mode='r', encoding='utf-8
 contents = "\n".join(content.split("\n")[59:1952])
 
 # tokenize input
-nltk.download("punkt")
+# nltk.download("punkt")
 tokens = word_tokenize(contents)
 print(tokens[1:5])
 
@@ -135,41 +135,57 @@ y = np.array(y)
 # Build model
 from keras.layers import Embedding, LSTM, Dense
 import tensorflow as tf
+from keras.activations import softmax
 
 class TextGenerator(keras.Model):
     def __init__(self, vocab_size, n_embed, output_dim, sequence_length, lstm_units=64):
         super(TextGenerator, self).__init__()
         self.n_embed = n_embed
-        self.embedding = Embedding(vocab_size, n_embed, input_length=sequence_length)
-        self.lstm1 = LSTM(lstm_units, activation="tanh", return_sequences=True)
+        self.sequence_length = sequence_length
+        self.embedding = Embedding(vocab_size, n_embed, input_length=self.sequence_length)
+        self.lstm1 = LSTM(lstm_units, activation="tanh", return_sequences=True) # [B, T, C]
         self.fc1 = Dense(lstm_units, activation="relu")
         self.lstm2 = LSTM(lstm_units, activation="tanh", return_sequences=True)
-        self.lstm3 = LSTM(lstm_units, activation="tanh", return_sequences=False)
-        self.logits = Dense(output_dim, activation=None)
+        self.lstm3 = LSTM(lstm_units, activation="tanh", return_sequences=False) # [B, C]
+        self.logits = Dense(output_dim, activation=None) # [B, C2]
 
     def call(self, inputs):
         x = self.embedding(inputs)  # B,T -> B,T,C
         x0 = self.fc1(x)
         x = self.lstm1(x)
         x = self.lstm2(x)
+        x = x + x0          # here sequence returned : dimensions match: B, T, C
         x = self.lstm3(x)
-        x = x + x0
         logits = self.logits(x) # possibly add softmax
         return logits
 
     def generate(self, input, n_words):
+        '''
+        input [1, T, C]
+        output [n_words, C]
+        :param input:
+        :param n_words:
+        :return:
+        '''
         words = []
         for _ in range(n_words):
-            y = self.call(tf.expand_dims(input, 0))
-            iword = np.argmax(y)
-            input = tf.concat([input[1:], tf.constant([iword])])
-            words.append(decode([iword]))
+            inputs_cond = input[-self.sequence_length:]
+            logits = self(tf.expand_dims(inputs_cond, 0))
+            probs = softmax(logits)
+            iword = tf.squeeze(tf.random.categorical(logits, 1))
+
+            input = tf.concat([input, tf.expand_dims(iword, axis=0)], axis=0)
+            words.append(decode([iword.numpy()]))
         return words
 
 model = TextGenerator(vocab_size=vocab_size, n_embed=embed_dim, output_dim=vocab_size, sequence_length=block_size)
+if os.path.exists(r'..\..\models\Textgenerator\kakfka_model_weights.index'):
+    model.load_weights(r'..\..\models\Textgenerator\kakfka_model_weights.index')
+
 model.compile(optimizer="adam",
-              loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics="accuracy") #[keras.metrics.SparseCategoricalAccuracy(name='acc')])
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics="accuracy") #[keras.metrics.SparseCategoricalAccuracy(name='acc')])
+
 # test_input = tf.expand_dims([np.random.randint(0, vocab_size) for _ in range(block_size)], axis=0)
 # test_input =np.array([[np.random.randint(0, vocab_size) for _ in range(block_size)],
 #              [np.random.randint(0, vocab_size) for _ in range(block_size)]])
@@ -182,9 +198,15 @@ model.compile(optimizer="adam",
 # print("first loss: ", cce(y_ohe, model.predict(x)).numpy())
 
 
+# Test generator
+generated = model.generate(x[0], 100)
+print(" ".join(generated))
+# Test end
+
 history = model.fit(x, y, epochs=10, validation_split=0.2)
 
-words = model.generate(x[0, :], 100)
-model.save(r'..\..\models\Textgenerator\kakfka_model')
+generated_text = model.generate(x[0], 100)
+print("generating: ", " ".join(generated_text))
+model.save_weights(r'..\..\models\Textgenerator\kakfka_model_weights')
 
 print(history)
