@@ -133,7 +133,7 @@ y = np.array(y)
 
 # >> NO EMBEDDING SINCE MODEL WILL HANDLE THIS INTERNALLY WITH AN EMBEDDING LAYER
 # Build model
-from keras.layers import Embedding, LSTM, Dense
+from keras.layers import Embedding, LSTM, Dense, LayerNormalization
 import tensorflow as tf
 from keras.activations import softmax
 
@@ -146,17 +146,25 @@ class TextGenerator(keras.Model):
         self.lstm1 = LSTM(lstm_units, activation="tanh", return_sequences=True) # [B, T, C]
         self.fc1 = Dense(lstm_units, activation="relu")
         self.lstm2 = LSTM(lstm_units, activation="tanh", return_sequences=True)
-        self.lstm3 = LSTM(lstm_units, activation="tanh", return_sequences=False) # [B, C]
+        self.lstm3 = LSTM(2*lstm_units, activation="tanh", return_sequences=True) # [B, C]
+        self.lstm4 = LSTM(lstm_units, activation="tanh", return_sequences=False)
         self.logits = Dense(output_dim, activation=None) # [B, C2]
+
+        self.ln1 = LayerNormalization()
+        self.ln2 = LayerNormalization()
+        self.ln3 = LayerNormalization()
 
     def call(self, inputs):
         x = self.embedding(inputs)  # B,T -> B,T,C
-        x0 = self.fc1(x)
-        x = self.lstm1(x)
+        x0 = self.fc1(self.ln1(x))
+        x = self.lstm1(self.ln2(x))
         x = self.lstm2(x)
+
         x = x + x0          # here sequence returned : dimensions match: B, T, C
         x = self.lstm3(x)
+        x = self.lstm4(self.ln3(x))
         logits = self.logits(x) # possibly add softmax
+        #tf.reshape()
         return logits
 
     def generate(self, input, n_words):
@@ -186,10 +194,12 @@ model.compile(optimizer="adam",
             loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
             metrics="accuracy") #[keras.metrics.SparseCategoricalAccuracy(name='acc')])
 
-# test_input = tf.expand_dims([np.random.randint(0, vocab_size) for _ in range(block_size)], axis=0)
+print(model.summary())
+
+test_input = tf.expand_dims([np.random.randint(0, vocab_size) for _ in range(block_size)], axis=0)
 # test_input =np.array([[np.random.randint(0, vocab_size) for _ in range(block_size)],
 #              [np.random.randint(0, vocab_size) for _ in range(block_size)]])
-# test_prediction = model.predict(test_input)
+test_prediction = model.predict(test_input)
 # print(test_prediction.shape)
 # i = np.argmax(test_prediction)
 # print(int_to_word[i])
@@ -199,14 +209,22 @@ model.compile(optimizer="adam",
 
 
 # Test generator
-generated = model.generate(x[0], 100)
-print(" ".join(generated))
+generated_priorTraining = model.generate(x[0], 100)
+print(" ".join(generated_priorTraining))
 # Test end
 
-history = model.fit(x, y, epochs=10, validation_split=0.2)
+history = model.fit(x, y, epochs=5, validation_split=0.2)
+
+history = model.fit(x, y, epochs=5, validation_split=0.2)
 
 generated_text = model.generate(x[0], 100)
 print("generating: ", " ".join(generated_text))
 model.save_weights(r'..\..\models\Textgenerator\kakfka_model_weights')
+
+# Visualize training
+import matplotlib.pyplot as plt
+plt.plot(history.histroy['loss'])
+plt.show()
+
 
 print(history)
