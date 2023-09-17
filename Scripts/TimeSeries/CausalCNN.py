@@ -62,14 +62,18 @@ class CausalCNN(nn.Module):
 
         self.cnn_block = nn.ModuleList(layers)
         self.loss = nn.MSELoss()
-
+        self.activation = nn.LeakyReLU()
 
     def forward(self, input):
         assert self.in_channels[0] == np.shape(input)[1], "input channels does not match expected number of channels"
         x = input
-        for l in self.cnn_block:
+        for i, l in enumerate(self.cnn_block):
             x0 = x
-            x = self.activation(l(x))
+            if i < len(self.cnn_block)-1:
+                x = self.activation(l(x))
+            else:
+                # no activation to allow negative outputs
+                x = l(x)
             # residual architecture: later cnn layers can add to previous outputs
             # x = x0 + x
         return x
@@ -99,6 +103,7 @@ output_normal_conv = normal_conv(input)
 print(output2)
 
 cmodel = CausalCNN(in_channels=[1, 5, 3], out_channels=[5, 3, 1], kernel_sizes=[3, 3, 3], dilations=[1, 3, 5])
+cmodel = cmodel.float()
 cmodel.to(device)
 output = cmodel(input)
 print(output)
@@ -107,15 +112,16 @@ print(output)
 # Fitting
 def generate_data(shape: tuple):
     B, C, T = shape
-    data = np.zeros(shape)
-    ampl = np.random.rand(B) + 1
-    phase = (np.random.rand(B) + 1) * np.pi
-    freq = (np.random.rand(B) + 1) * np.pi
+    data = np.zeros(shape, dtype=float)
+    ampl = (np.random.rand(B) + 1)/2
+    phase = (np.random.rand(B) + 1) * np.pi / 2
+    freq = (np.random.rand(B) + 1) * np.pi / 2
     for t in range(T):
         data[:, :, t] = ampl * np.sin(t*freq + phase)
     return data
 
-input = generate_data(shape=(1,1,100))
+input = torch.tensor(generate_data(shape=(1,1,100)))
+input = input.float()
 
 nepochs = 100
 optimizer = torch.optim.AdamW(cmodel.parameters(), lr=0.01)
@@ -130,8 +136,8 @@ for i in range(nepochs):
 
 import matplotlib.pyplot as plt
 
-plt.plot(y_pred)
-plt.plot(input)
+plt.plot(y_pred.detach().numpy()[0, 0, :])
+plt.plot(input.detach().numpy()[0, 0, :])
 plt.show()
 
 print("finished")
