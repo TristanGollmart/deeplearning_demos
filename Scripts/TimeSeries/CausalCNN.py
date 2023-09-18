@@ -30,6 +30,7 @@ input = torch.zeros((1, 1, 100))
 output = c(input)
 print(output)
 
+
 input[0, 0, 9] = 100
 output2 = c(input)
 print(output2)
