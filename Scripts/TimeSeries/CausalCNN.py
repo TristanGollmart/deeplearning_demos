@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
-
+import math
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -63,7 +63,10 @@ class CausalCNN(nn.Module):
         self.cnn_block = nn.ModuleList(layers)
         self.loss = nn.MSELoss()
         self.activation = nn.LeakyReLU()
-
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std, std)
     def forward(self, input):
         assert self.in_channels[0] == np.shape(input)[1], "input channels does not match expected number of channels"
         x = input

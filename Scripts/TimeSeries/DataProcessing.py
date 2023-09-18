@@ -3,8 +3,6 @@ import numpy as np
 def get_log_returns(data):
     pass
 
-
-
 def series_to_sequence(data, seq_length):
     # transforms data of shape [T, D] (T time steps, D features)
     # to shape [T-seq_length, D, seq_length]
