@@ -14,9 +14,10 @@ class causalConv1D(nn.Module):
         self.padding = dilation * (kernel_size - 1) / 2 + 1
         self.dilation = dilation
 
+        # switch of pytorch's internal padding and adjust manually in call
         self.conv1 = nn.Conv1d(in_channels=in_channels, out_channels=out_channels,
                                kernel_size=kernel_size, stride=stride,
-                               padding=0, dilation=dilation)
+                               padding='same', dilation=dilation)
 
     def forward(self, input):
         x = F.pad(input, (int(self.padding), -int(self.padding)))
@@ -25,7 +26,7 @@ class causalConv1D(nn.Module):
 
 
 c = causalConv1D(in_channels=1, out_channels=1, kernel_size=3, stride=1, dilation=1)
-input = torch.ones((1, 1, 100))
+input = torch.zeros((1, 1, 100))
 output = c(input)
 print(output)
 
