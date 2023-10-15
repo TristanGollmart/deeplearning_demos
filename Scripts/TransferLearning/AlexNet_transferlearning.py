@@ -5,6 +5,7 @@ from torchvision import models, datasets
 from torchvision.transforms import ToTensor
 import torch.optim as optim
 from PIL import Image
+import matplotlib.pyplot as plt
 
 class TransferFeatures(nn.Module):
     def __init__(self, original_model, classifier, modelname):
@@ -61,15 +62,16 @@ train_data = datasets.MNIST(root = "data",
 batch_size = 4
 dataloader = torch.utils.data.DataLoader(train_data,
                                          batch_size=batch_size,
-                                         shuffle=True,
-                                         num_workers=1)
+                                         shuffle=True
+                                         )
 
 criterion = nn.CrossEntropyLoss()
 opt = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9)
 
+history = []
 for epoch in range(2):
-    running_loss = 0
-    for i, data in enumerate(dataloader):
+    running_loss = 0.0
+    for i, data in enumerate(dataloader, 0):
         inputs, labels = data
 
 
@@ -84,11 +86,41 @@ for epoch in range(2):
         running_loss += loss.item()
 
         if i % 100 == 0: # every 100th minibatch
-            print(f"{0:d}, {1:5d} loss: {2:.3f}".format(epoch + 1, i + 1, running_loss/100))
-            running_loss = 0
+            print("{0:d}, {1:5d} loss: {2:.3f}".format(epoch + 1, i + 1, running_loss/100))
+            history.append(running_loss/100)
+            running_loss = 0.0
 
 torch.save(new_model, "..\..\models\alexnet_MNIST.pth")
 
-# model reloading
-# model.load_state_dict(torch.load("..\..\models\alexnet_MNIST.pth"))
-# model.eval() # set dropout and batchnorm layers to evaluation mode
+plt.plot(np.array(history))
+plt.show()
+
+# ------------------------------------------------------------
+# ----- model reloading and evaluation on test set -----------
+# ------------------------------------------------------------
+from sklearn.metrics import confusion_matrix, classification_report
+
+model.load(torch.load("..\..\models\alexnet_MNIST.pth"))
+model.eval() # set dropout and batchnorm layers to evaluation mode
+
+test_data = datasets.MNIST(root="data",
+                           train=False,
+                           transform=transform)
+
+data_loader = torch.utils.data.DataLoader(test_data,
+                                          batch_size=batch_size,
+                                          shuffle=True,
+                                          num_workers=1)
+
+# prediction phase
+y_trues = []
+y_preds = []
+
+for i, data in enumerate(data_loader, 0):
+    input, labels = data
+    output = model(input)
+    y_trues.append(int(labels[0]))
+    index = np.argmax(output)
+    y_preds.append(int(index[0]))
+
+print(confusion_matrix(y_trues, y_preds))
