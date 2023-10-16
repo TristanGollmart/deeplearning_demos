@@ -7,6 +7,8 @@ import torch.optim as optim
 from PIL import Image
 import matplotlib.pyplot as plt
 
+retrain_model = False
+
 class TransferFeatures(nn.Module):
     def __init__(self, original_model, classifier, modelname):
         '''
@@ -33,7 +35,8 @@ class TransferFeatures(nn.Module):
         return probs
 
 
-model = models.alexnet(pretrained=True)
+model = models.alexnet(weights=models.AlexNet_Weights)#pretrained=True)
+
 
 classifier = nn.Sequential(nn.Dropout(),
                            nn.Linear(256 * 6 * 6, 4096),
@@ -58,8 +61,22 @@ train_data = datasets.MNIST(root = "data",
                             transform = transform,
                             download=True)
 
+ndata = train_data.targets.shape[0]
+ntrain = int(round(0.9 * ndata, 0))
+nval = ndata - ntrain
+train_subset, val_subset = torch.utils.data.random_split(train_data, [ntrain, nval])
+#val_data, val_labels = train_data.data[val_subset.indices], train_data.targets[val_subset.indices]
 
 batch_size = 4
+trainloader = torch.utils.data.DataLoader(dataset=train_subset,
+                                         batch_size=batch_size,
+                                         shuffle=True
+                                         )
+valloader = torch.utils.data.DataLoader(dataset=val_subset,
+                                         batch_size=batch_size,
+                                         shuffle=False
+                                         )
+
 dataloader = torch.utils.data.DataLoader(train_data,
                                          batch_size=batch_size,
                                          shuffle=True
@@ -68,39 +85,50 @@ dataloader = torch.utils.data.DataLoader(train_data,
 criterion = nn.CrossEntropyLoss()
 opt = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9)
 
-history = []
-for epoch in range(2):
-    running_loss = 0.0
-    for i, data in enumerate(dataloader, 0):
-        inputs, labels = data
+if retrain_model:
+    history = []
+    for epoch in range(2):
+        running_loss = 0.0
+        for i, data in enumerate(trainloader, 0):
+            inputs, labels = data
 
 
-        # reset gradient
-        opt.zero_grad()
-        probs = new_model(inputs)
+            # reset gradient
+            opt.zero_grad()
+            probs = new_model(inputs)
 
-        loss = criterion(probs, labels)
-        loss.backward()
-        opt.step()
+            loss = criterion(probs, labels)
+            loss.backward()
+            opt.step()
 
-        running_loss += loss.item()
+            running_loss += loss.item()
 
-        if i % 100 == 0: # every 100th minibatch
-            print("{0:d}, {1:5d} loss: {2:.3f}".format(epoch + 1, i + 1, running_loss/100))
-            history.append(running_loss/100)
-            running_loss = 0.0
+            if (i+1) % 1000 == 0: # every 100th minibatch
+                valloss = 0
+                model.eval()
+                print("{0:d}, {1:5d} loss: {2:.3f}".format(epoch + 1, i + 1, running_loss/1000))
+                # Validation loss
+                for input, val_label in valloader:
+                    y_hat = new_model(input)
+                    valloss += criterion(y_hat, val_label)
+                history.append([running_loss/1000, valloss.item() / len(valloader)])
+                running_loss = 0.0
+                model.train()
 
-torch.save(new_model, "..\..\models\alexnet_MNIST.pth")
+    torch.save(new_model, f"..\\..\\models\\alexnet_MNIST.pth")
 
-plt.plot(np.array(history))
-plt.show()
+    plt.plot(np.array([h[0] for h in history]), label='train loss')
+    plt.plot(np.array([h[1] for h in history]), label='val loss')
+    plt.legend()
+    plt.show()
 
 # ------------------------------------------------------------
 # ----- model reloading and evaluation on test set -----------
 # ------------------------------------------------------------
 from sklearn.metrics import confusion_matrix, classification_report
 
-model.load(torch.load("..\..\models\alexnet_MNIST.pth"))
+# model = models.alexnet(weights=models.AlexNet_Weights)
+model = torch.load(f"..\\..\\models\\alexnet_MNIST.pth")
 model.eval() # set dropout and batchnorm layers to evaluation mode
 
 test_data = datasets.MNIST(root="data",
@@ -115,6 +143,7 @@ data_loader = torch.utils.data.DataLoader(test_data,
 # prediction phase
 y_trues = []
 y_preds = []
+test_loss = 0
 
 for i, data in enumerate(data_loader, 0):
     input, labels = data
@@ -122,5 +151,7 @@ for i, data in enumerate(data_loader, 0):
     y_trues.append(int(labels[0]))
     index = np.argmax(output)
     y_preds.append(int(index[0]))
+    test_loss += criterion(output, labels)
 
+print(f"loss: {test_loss/len(data_loader)}")
 print(confusion_matrix(y_trues, y_preds))
