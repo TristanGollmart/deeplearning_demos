@@ -125,7 +125,7 @@ if retrain_model:
 # ------------------------------------------------------------
 # ----- model reloading and evaluation on test set -----------
 # ------------------------------------------------------------
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 # model = models.alexnet(weights=models.AlexNet_Weights)
 model = torch.load(f"..\\..\\models\\alexnet_MNIST.pth")
@@ -137,8 +137,7 @@ test_data = datasets.MNIST(root="data",
 
 data_loader = torch.utils.data.DataLoader(test_data,
                                           batch_size=batch_size,
-                                          shuffle=True,
-                                          num_workers=1)
+                                          shuffle=True)
 
 # prediction phase
 y_trues = []
@@ -147,11 +146,15 @@ test_loss = 0
 
 for i, data in enumerate(data_loader, 0):
     input, labels = data
-    output = model(input)
-    y_trues.append(int(labels[0]))
-    index = np.argmax(output)
-    y_preds.append(int(index[0]))
-    test_loss += criterion(output, labels)
+    probs = model(input)
+    y_trues.append(labels.detach().tolist())
+    indices = np.argmax(probs.detach().tolist(), 1)
+    y_preds.append(list(indices))
+    test_loss += criterion(probs, labels)
+
+y_trues = [i for sublist in y_trues for i in sublist]
+y_preds = [i for sublist in y_preds for i in sublist]
 
 print(f"loss: {test_loss/len(data_loader)}")
 print(confusion_matrix(y_trues, y_preds))
+print(f"accurace: {accuracy_score(y_trues, y_preds)}")
