@@ -1,3 +1,6 @@
+# Performs transfer learning on the resnet50 model on mnist dataset
+# Evaluates performance on a testset using standard and augmented inference, respectively
+
 import numpy as np
 import torch.cuda
 from torchvision import transforms, models, datasets
@@ -126,6 +129,13 @@ mnist = datasets.MNIST(root = "data",
 images = transform_train(mnist.data[1].type(torch.float32))
 
 def get_dataloaders(feature_model, transforms_train, transforms_test):
+    """
+    returns dataloaders for train, validation and test data
+    :param feature_model: pretrained model to create useful features/ embeddings
+    :param transforms_train: torch transforms to apply to training data
+    :param transforms_test:  torch transforms to apply to test data
+    :return:
+    """
     feature_model.to(device)
     transform_PIL_to_NP = transforms.Lambda(lambda x: np.array(x))
     train_data = datasets.MNIST(root = "data",
