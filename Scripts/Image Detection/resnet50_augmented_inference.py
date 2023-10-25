@@ -19,14 +19,19 @@ batch_size = 4
 def augment_image(img):
     # induce small shifts and rotations to mimic brain behaviour
     # where object is scanned by minor eye movements creating an ensemble of object embeddings
+    orig_device = img.get_device()
+    img = img.cpu()
+
     rotated = [transforms.RandomRotation(degrees=d)(img) for d in np.random.randint(0, 20, size=10)]
     cropped = [transforms.Resize(size=img.shape[-1])(transforms.CenterCrop(size=int(size))(img))
                for size in np.dot(np.shape(img)[-1], [0.7, 0.8, 0.9, 1.]).astype(int)]
     augmented_images = np.concatenate([rotated, cropped])
+    img = img.to(orig_device)
     return augmented_images
 
 
-def evaluate_model(model, dataloader, criterion, augment_images=False, aggregation_augmentations=None, aggregation_logits=None):
+def evaluate_model(model, dataloader, criterion, augment_images=False, aggregation_augmentations=None,
+                   aggregation_logits=None):
     """
     evaluates model on data yield by dataloader
     :param model: torch model to be evaluated
@@ -38,6 +43,8 @@ def evaluate_model(model, dataloader, criterion, augment_images=False, aggregati
             way to aggregate the vector of probabilities
     :return: returns average score
     """
+    # model.to("cpu")
+
     if not aggregation_logits in ["max", None]:
         raise ValueError("aggregation of probability vector must be one of {0}".
                          format(["max", None]))
@@ -47,6 +54,8 @@ def evaluate_model(model, dataloader, criterion, augment_images=False, aggregati
         score = 0
         for i, data in enumerate(dataloader, 0):
             inputs, labels = data
+            inputs = inputs.to(device)
+            labels = labels.to(device)
             if augment_images:
                 if not aggregation_augmentations in ["sum", "avg", "max", None]:
                     raise ValueError("aggregation of augmented results must be one of {0}".
@@ -55,17 +64,19 @@ def evaluate_model(model, dataloader, criterion, augment_images=False, aggregati
                 probs = []
                 for ix, input in enumerate(inputs):
                     augmented_inputs = augment_image(input.type(torch.float32))
-                    #label = labels[ix]
+                    # label = labels[ix]
                     if aggregation_augmentations == "max":
                         probs.append(torch.max(torch.stack([model(single_input.unsqueeze(0)).detach()
-                                                            for single_input in augmented_inputs]), axis=0))
+                                                            for single_input in augmented_inputs]), axis=0).to(device))
                     elif aggregation_augmentations == "avg":
                         probs.append(torch.mean(torch.stack([model(single_input.unsqueeze(0)).detach()
-                                                            for single_input in augmented_inputs]), axis=0))
+                                                             for single_input in augmented_inputs]), axis=0).to(device))
                     elif aggregation_augmentations == None:
                         probs.append(torch.stack([model(single_input.unsqueeze(0)).detach()
-                                                            for single_input in augmented_inputs]))
+                                                  for single_input in augmented_inputs]).to(device))
 
+                print(torch.stack(probs).get_device())
+                print(labels.get_device())
                 if aggregation_logits == None:
                     score += criterion(torch.stack(probs).squeeze(1), labels)
                 elif aggregation_logits == "max":
@@ -196,10 +207,10 @@ def get_dataloaders(feature_model, transforms_train, transforms_test):
         y = []
         for i, data in enumerate(dataloader_temp, 0):
             input, targets = data
-            targets.to(device)
-            data = transforms_train(input.type(torch.float32).to(device))
+            targets = targets.to(device)
+            input = transforms_train(input.type(torch.float32).to(device))
             y.append(torch.flatten(targets).tolist())
-            features = feature_model(data)
+            features = feature_model(input)
             features = torch.flatten(features, 1).tolist()
             x += features
 
@@ -301,9 +312,10 @@ print(f"loss without augmentation: {loss:.3f}")
 print(f"loss with augmentation: {loss_augmented:.3f}")
 
 from torchmetrics import Accuracy
-print(Accuracy("multiclass")(torch.Tensor([1., 1., 1., 1.], type=torch.int), torch.Tensor([1., 2., 3., 1.], type=torch.int)))
-acc = evaluate_model(model, dataloader_test, Accuracy("multiclass"), False, aggregation_logits="max")
-acc_aug = evaluate_model(model, dataloader_test, Accuracy("multiclass"), True, aggregation_augmentations="avg", aggregation_logits="max")
+num_classes = torch.unique(dataloader_train.dataset.dataset.y).size()
+Accuracy(task="multiclass", num_classes=num_classes)(torch.Tensor([1., 1., 1., 1.]).type(torch.int), torch.Tensor([1., 2., 3., 1.]).type(torch.int))
+acc = evaluate_model(model, dataloader_test, Accuracy("multiclass", num_classes=num_classes), False, aggregation_logits="max")
+acc_aug = evaluate_model(model, dataloader_test, Accuracy("multiclass", num_classes=num_classes), True, aggregation_augmentations="avg", aggregation_logits="max")
 
 print(f"accuracy without augmentation: {acc:.3f}")
 print(f"accuracy with augmentation: {acc_aug:.3f}")
