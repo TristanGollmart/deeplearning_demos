@@ -19,14 +19,14 @@ train_model = False
 def augment_image(img):
     # induce small shifts and rotations to mimic brain behaviour
     # where object is scanned by minor eye movements creating an ensemble of object embeddings
-    orig_device = img.get_device()
+    #orig_device = img.get_device()
     img = img.cpu()
 
     rotated = [transforms.RandomRotation(degrees=d)(img) for d in np.random.randint(0, 20, size=10)]
     cropped = [transforms.Resize(size=img.shape[-1])(transforms.CenterCrop(size=int(size))(img))
                for size in np.dot(np.shape(img)[-1], [0.7, 0.8, 0.9, 1.]).astype(int)]
     augmented_images = np.concatenate([rotated, cropped])
-    img = img.to(orig_device)
+    #img = img.to(orig_device)
     return augmented_images
 
 
@@ -65,14 +65,19 @@ def evaluate_model(model, dataloader, criterion, augment_images=False, aggregati
                 for ix, input in enumerate(inputs):
                     augmented_inputs = augment_image(input.type(torch.float32))
                     # label = labels[ix]
+                    # f, ax = plt.subplots(1, len(augmented_inputs))
+                    # for i, img in enumerate(augmented_inputs):
+                    #     ax[i].imshow(img.permute(1, 2, 0))
+                    # plt.show()
+
                     if aggregation_augmentations == "max":
-                        probs.append(torch.max(torch.stack([model(single_input.unsqueeze(0)).detach()
+                        probs.append(torch.max(torch.stack([model(single_input.unsqueeze(0).to(device)).detach()
                                                             for single_input in augmented_inputs]), axis=0).to(device))
                     elif aggregation_augmentations == "avg":
-                        probs.append(torch.mean(torch.stack([model(single_input.unsqueeze(0)).detach()
+                        probs.append(torch.mean(torch.stack([model(single_input.unsqueeze(0).to(device)).detach()
                                                              for single_input in augmented_inputs]), axis=0).to(device))
                     elif aggregation_augmentations == None:
-                        probs.append(torch.stack([model(single_input.unsqueeze(0)).detach()
+                        probs.append(torch.stack([model(single_input.unsqueeze(0).to(device)).detach()
                                                   for single_input in augmented_inputs]).to(device))
 
                 # print(torch.stack(probs).get_device())
@@ -155,6 +160,8 @@ transform_train = transforms.Compose([
         #transforms.Lambda(lambda x: x.unsqueeze_(1).repeat(1, 3, 1, 1)),
         #transforms.Lambda(lambda x: x.repeat(3, 1, 1) if len(x.shape) <= 2 else x.unsqueeze(1).repeat(1, 3, 1, 1)),
         transforms.Lambda(lambda x: x.unsqueeze(0).expand(3, -1, -1) if len(x.shape) <= 2 else x.expand(3, -1, -1)), #batches are created automatically by dataloader: 3, N, N -> B, 3, N, N
+        transforms.RandomResizedCrop(size=(224, 224), antialias=True),
+        transforms.RandomRotation((-15, 15)),
         transforms.Resize((232, 232)),
         #transforms.RandomHorizontalFlip(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -231,7 +238,7 @@ criterion = nn.CrossEntropyLoss()
 if train_model:
     opt = Adam(params=classifier.parameters(), lr=0.0001)
     history = []
-    for epoch in range(0):
+    for epoch in range(1):
         running_loss = 0
         for i, data in enumerate(dataloader_train, 0):
             inputs, labels = data
@@ -246,28 +253,28 @@ if train_model:
             if ((i+1) * batch_size) % 1000 == 0:
                 print(f"epoch {epoch+1:d}, step {i+1:5d}, loss {running_loss/ np.round(1000/batch_size):.3f}")
                 running_loss = 0
+                break
 
     plt.plot(history)
     plt.show()
     torch.save(model, f"..\\..\\models\\resnet50_finetuned_Mnist.pth")
 
-model = torch.load(f"..\\..\\models\\resnet50_finetuned_Mnist.pth")
+model = torch.load(f"..\\..\\models\\resnet50_finetuned_Mnist.pth", map_location=torch.device('cpu'))
 for i, data in enumerate(dataloader_test, 0):
     inputs, labels = data
     probs = model(inputs.type(torch.float32))
     print(probs[0])
     break
 
-loss = evaluate_model(model, dataloader_test, criterion)
-loss_train = evaluate_model(model, dataloader_train, criterion)
+#loss = evaluate_model(model, dataloader_test, criterion)
+#loss_train = evaluate_model(model, dataloader_train, criterion)
+#print(f"loss without augmentation: {loss:.3f}")
 
-loss_augmented = evaluate_model(model, dataloader_test, criterion, True, aggregation_augmentations="avg")
-
-print(f"loss without augmentation: {loss:.3f}")
-print(f"loss with augmentation: {loss_augmented:.3f}")
+#loss_augmented = evaluate_model(model, dataloader_test, criterion, True, aggregation_augmentations="avg")
+#print(f"loss with augmentation: {loss_augmented:.3f}")
 
 from torchmetrics import Accuracy
-num_classes = torch.unique(dataloader_train.dataset.dataset.y).size()
+num_classes = len(set(dataloader_train.dataset.dataset.targets.tolist()))
 Accuracy(task="multiclass", num_classes=num_classes)(torch.Tensor([1., 1., 1., 1.]).type(torch.int), torch.Tensor([1., 2., 3., 1.]).type(torch.int))
 acc = evaluate_model(model, dataloader_test, Accuracy("multiclass", num_classes=num_classes), False, aggregation_logits="max")
 acc_aug = evaluate_model(model, dataloader_test, Accuracy("multiclass", num_classes=num_classes), True, aggregation_augmentations="avg", aggregation_logits="max")
